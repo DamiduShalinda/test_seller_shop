@@ -80,8 +80,10 @@ create table shops (
 
 create table products (
   id uuid primary key default gen_random_uuid(),
+  created_by uuid references users(id),
   name text not null,
   description text,
+  archived_at timestamptz,
   created_at timestamptz default now()
 );
 
