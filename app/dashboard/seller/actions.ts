@@ -38,3 +38,19 @@ export async function createBatchAction(formData: FormData) {
   if (error) throw new Error(error.message);
   revalidatePath("/dashboard/seller");
 }
+
+export async function createBatchActionWithState(
+  _prevState: { ok: boolean; error?: string; submittedAt?: number } | undefined,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string; submittedAt?: number }> {
+  try {
+    await createBatchAction(formData);
+    return { ok: true, submittedAt: Date.now() };
+  } catch (e: unknown) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Failed to create batch",
+      submittedAt: Date.now(),
+    };
+  }
+}

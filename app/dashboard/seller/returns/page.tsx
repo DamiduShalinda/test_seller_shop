@@ -5,6 +5,9 @@ import { getMyRole } from "@/lib/supabase/profile";
 import { requestReturnAction } from "../return-actions";
 import { SubmitButton } from "@/components/form/submit-button";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { ResponsiveFormDrawer } from "@/components/form/responsive-form-drawer";
+import { Label } from "@/components/ui/label";
 
 type SellerBatchRow = {
   id: string;
@@ -64,40 +67,37 @@ export default async function SellerReturnsPage() {
         </p>
       </header>
 
-      <section className="rounded border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Request return</h2>
-        <form action={requestReturnAction} className="grid gap-3 max-w-xl">
-          <label className="grid gap-1">
-            <span className="text-sm">Batch</span>
-            <select name="batch_id" className="border rounded px-3 py-2 bg-background">
-              {((batches ?? []) as SellerBatchRow[]).map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.products?.[0]?.name ?? b.id} (status: {b.status})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Quantity to return</span>
-            <Input
-              name="requested_quantity"
-              type="number"
-              min="1"
-              required
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Reason (optional)</span>
-            <Input
-              name="reason"
-              placeholder="Unsold / expired / withdraw"
-            />
-          </label>
-          <SubmitButton className="w-fit" pendingText="Submitting...">
-            Submit request
-          </SubmitButton>
-        </form>
-      </section>
+      <div>
+        <ResponsiveFormDrawer
+          title="Request return"
+          description="Request a return for unsold items currently in shop."
+          trigger={<Button>Request return</Button>}
+        >
+          <form action={requestReturnAction} className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="batch_id">Batch</Label>
+              <select id="batch_id" name="batch_id" className="border rounded px-3 py-2 bg-background">
+                {((batches ?? []) as SellerBatchRow[]).map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.products?.[0]?.name ?? "Product"} (status: {b.status})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="requested_quantity">Quantity to return</Label>
+              <Input id="requested_quantity" name="requested_quantity" type="number" min="1" required />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="reason">Reason (optional)</Label>
+              <Input id="reason" name="reason" placeholder="Unsold / expired / withdraw" />
+            </div>
+            <SubmitButton className="w-fit" pendingText="Submitting...">
+              Submit request
+            </SubmitButton>
+          </form>
+        </ResponsiveFormDrawer>
+      </div>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">My return requests</h2>

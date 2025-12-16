@@ -4,11 +4,11 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getMyRole } from "@/lib/supabase/profile";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SubmitButton } from "@/components/form/submit-button";
+import { ResponsiveFormDrawer } from "@/components/form/responsive-form-drawer";
 import { createProductAction } from "./actions";
 
 type ProductRow = {
@@ -48,12 +48,13 @@ export default async function SellerProductsPage() {
         </p>
       </header>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Add product</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form action={createProductAction} className="grid gap-4 max-w-2xl">
+      <div>
+        <ResponsiveFormDrawer
+          title="Add product"
+          description="Create a new product for your catalog."
+          trigger={<Button>Add product</Button>}
+        >
+          <form action={createProductAction} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="name">Name</Label>
               <Input id="name" name="name" placeholder="e.g. Classic T-Shirt" required />
@@ -66,8 +67,8 @@ export default async function SellerProductsPage() {
               Create product
             </SubmitButton>
           </form>
-        </CardContent>
-      </Card>
+        </ResponsiveFormDrawer>
+      </div>
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">

@@ -1,19 +1,21 @@
 import { redirect } from "next/navigation";
+import { unstable_noStore as noStore } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { getMyRole } from "@/lib/supabase/profile";
-import { createBatchAction } from "./actions";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { SubmitButton } from "@/components/form/submit-button";
+import { ResponsiveFormDrawer } from "@/components/form/responsive-form-drawer";
+import { CreateBatchForm } from "@/components/seller/create-batch-form";
 
 export default async function SellerDashboard() {
+  noStore();
   const role = await getMyRole();
   if (!role) redirect("/dashboard/onboarding");
   if (role !== "seller") redirect("/dashboard");
 
   const supabase = await createClient();
-  const { data: products } = await supabase
+  const { data: products, error: productsError } = await supabase
     .from("products")
     .select("id, name, description, archived_at, created_by")
     .order("created_at", { ascending: false });
@@ -22,11 +24,13 @@ export default async function SellerDashboard() {
   const userId = claimsData?.claims?.sub;
   if (!userId) redirect("/auth/login");
 
-  const { data: batches } = await supabase
+  const { data: batches, error: batchesError } = await supabase
     .from("batches")
     .select("id, product_id, base_price, quantity, status, created_at")
     .eq("seller_id", userId)
     .order("created_at", { ascending: false });
+
+    console.log(batches)
 
   const myProducts = (products ?? []).filter(
     (p) => p.created_by === userId && !p.archived_at,
@@ -47,52 +51,31 @@ export default async function SellerDashboard() {
             <Link href="/dashboard/seller/products">Manage products</Link>
           </Button>
         </div>
+        {productsError ? (
+          <p className="text-sm text-destructive">Failed to load products: {productsError.message}</p>
+        ) : null}
+        {batchesError ? (
+          <p className="text-sm text-destructive">Failed to load batches: {batchesError.message}</p>
+        ) : null}
       </header>
 
       <section className="rounded border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Create batch</h2>
-        {myProducts.length === 0 ? (
-          <div className="text-sm text-muted-foreground">
-            Create at least one product before creating batches.
-          </div>
-        ) : (
-          <form action={createBatchAction} className="grid gap-3 max-w-xl">
-          <label className="grid gap-1">
-            <span className="text-sm">Product</span>
-            <select name="product_id" className="border rounded px-3 py-2 bg-background">
-              {myProducts.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Base price</span>
-            <input
-              name="base_price"
-              type="number"
-              step="0.01"
-              min="0"
-              className="border rounded px-3 py-2 bg-background"
-              required
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Quantity</span>
-            <input
-              name="quantity"
-              type="number"
-              min="1"
-              className="border rounded px-3 py-2 bg-background"
-              required
-            />
-          </label>
-          <SubmitButton className="w-fit" pendingText="Creating...">
-            Create
-          </SubmitButton>
-          </form>
-        )}
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">Batches</h2>
+          {myProducts.length === 0 ? (
+            <Button asChild>
+              <Link href="/dashboard/seller/products">Add a product first</Link>
+            </Button>
+          ) : (
+            <ResponsiveFormDrawer
+              title="Create batch"
+              description="Create a new batch for one of your active products."
+              trigger={<Button>Create batch</Button>}
+            >
+              <CreateBatchForm products={myProducts.map((p) => ({ id: p.id, name: p.name }))} />
+            </ResponsiveFormDrawer>
+          )}
+        </div>
       </section>
 
       <section className="space-y-3">

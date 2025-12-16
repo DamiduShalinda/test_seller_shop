@@ -8,6 +8,7 @@ type QueuedSaleEvent = {
   client_event_id: string;
   barcode: string;
   sold_price: number;
+  seller_amount: number | null;
   occurred_at: string;
 };
 
@@ -17,9 +18,46 @@ function loadQueue(): QueuedSaleEvent[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as QueuedSaleEvent[];
+    const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed;
+
+    return parsed
+      .map((value): QueuedSaleEvent | null => {
+        if (!value || typeof value !== "object") return null;
+        const row = value as Record<string, unknown>;
+        const clientEventId =
+          typeof row.client_event_id === "string" ? row.client_event_id : "";
+        const barcode = typeof row.barcode === "string" ? row.barcode : "";
+        const soldPriceRaw = row.sold_price;
+        const sold_price =
+          typeof soldPriceRaw === "number"
+            ? soldPriceRaw
+            : typeof soldPriceRaw === "string"
+              ? Number(soldPriceRaw)
+              : 0;
+        const sellerAmountRaw = row.seller_amount;
+        const seller_amount =
+          sellerAmountRaw == null
+            ? null
+            : typeof sellerAmountRaw === "number"
+              ? sellerAmountRaw
+              : typeof sellerAmountRaw === "string"
+                ? Number(sellerAmountRaw)
+                : null;
+        const occurred_at =
+          typeof row.occurred_at === "string" ? row.occurred_at : "";
+        if (!clientEventId || !barcode || !Number.isFinite(sold_price) || !occurred_at) {
+          return null;
+        }
+        return {
+          client_event_id: clientEventId,
+          barcode,
+          sold_price,
+          seller_amount: Number.isFinite(seller_amount ?? NaN) ? seller_amount : null,
+          occurred_at,
+        };
+      })
+      .filter((x): x is QueuedSaleEvent => Boolean(x));
   } catch {
     return [];
   }
@@ -34,6 +72,7 @@ export function ShopSalePanel() {
 
   const [barcode, setBarcode] = useState("");
   const [quotePrice, setQuotePrice] = useState<number | null>(null);
+  const [quoteSellerAmount, setQuoteSellerAmount] = useState<number | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -51,25 +90,26 @@ export function ShopSalePanel() {
   const quote = useCallback(async () => {
     setQuoteError(null);
     setQuotePrice(null);
+    setQuoteSellerAmount(null);
     const trimmed = barcode.trim();
     if (!trimmed) return;
 
     setBusy(true);
     try {
-      const { data, error } = await supabase.rpc("rpc_shop_quote_sale", {
-        p_barcode: trimmed,
-      });
-      if (error) throw error;
-      const row = Array.isArray(data) ? data[0] : data;
-      if (!row) {
-        setQuoteError("Barcode not found");
-        return;
-      }
-      if (row.status !== "in_shop") {
-        setQuoteError(`Item status is ${row.status}, cannot sell`);
-        return;
-      }
-      setQuotePrice(Number(row.sale_price));
+      const tryV2 = await supabase.rpc("rpc_shop_quote_sale_v2", { p_barcode: trimmed });
+      const fallback = tryV2.error
+        ? await supabase.rpc("rpc_shop_quote_sale", { p_barcode: trimmed })
+        : tryV2;
+      if (fallback.error) throw fallback.error;
+
+      const row = Array.isArray(fallback.data) ? fallback.data[0] : fallback.data;
+      if (!row) return void setQuoteError("Barcode not found");
+      if (row.status !== "in_shop") return void setQuoteError(`Item status is ${row.status}, cannot sell`);
+
+      const salePrice = Number(row.sale_price);
+      setQuotePrice(salePrice);
+      const sellerAmount = row.base_price != null ? Number(row.base_price) : null;
+      setQuoteSellerAmount(sellerAmount);
     } catch (e: unknown) {
       setQuoteError(e instanceof Error ? e.message : "Failed to quote");
     } finally {
@@ -83,15 +123,35 @@ export function ShopSalePanel() {
 
   const submitEvent = useCallback(
     async (event: QueuedSaleEvent) => {
-      const { data, error } = await supabase.rpc("rpc_shop_submit_sale_event", {
+      if (event.seller_amount == null) {
+        const { data, error } = await supabase.rpc("rpc_shop_quote_sale_v2", {
+          p_barcode: event.barcode,
+        });
+        if (error) throw error;
+        const row = Array.isArray(data) ? data[0] : data;
+        if (!row) throw new Error("Barcode not found");
+        event.seller_amount = row.base_price != null ? Number(row.base_price) : null;
+      }
+
+      const tryV2 = await supabase.rpc("rpc_shop_submit_sale_event_v2", {
+        p_client_event_id: event.client_event_id,
+        p_barcode: event.barcode,
+        p_sold_price: event.sold_price,
+        p_seller_amount: event.seller_amount,
+        p_occurred_at: event.occurred_at,
+        p_device_id: null,
+      });
+      if (!tryV2.error) return tryV2.data as string | null;
+
+      const fallback = await supabase.rpc("rpc_shop_submit_sale_event", {
         p_client_event_id: event.client_event_id,
         p_barcode: event.barcode,
         p_sold_price: event.sold_price,
         p_occurred_at: event.occurred_at,
         p_device_id: null,
       });
-      if (error) throw error;
-      return data as string | null;
+      if (fallback.error) throw fallback.error;
+      return fallback.data as string | null;
     },
     [supabase],
   );
@@ -109,6 +169,7 @@ export function ShopSalePanel() {
       client_event_id: crypto.randomUUID(),
       barcode: trimmed,
       sold_price: quotePrice,
+      seller_amount: quoteSellerAmount,
       occurred_at: new Date().toISOString(),
     };
 
@@ -125,7 +186,7 @@ export function ShopSalePanel() {
     } finally {
       setBusy(false);
     }
-  }, [barcode, quotePrice, enqueue, submitEvent]);
+  }, [barcode, quotePrice, quoteSellerAmount, enqueue, submitEvent]);
 
   const syncQueue = useCallback(async () => {
     if (queue.length === 0) return;

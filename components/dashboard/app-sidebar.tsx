@@ -27,7 +27,10 @@ export type AppSidebarItem = {
     | "dashboard"
     | "notifications"
     | "products"
+    | "inventory"
     | "sales"
+    | "stock"
+    | "events"
     | "collections"
     | "wallet"
     | "discounts"
@@ -42,7 +45,10 @@ const icons = {
   dashboard: LayoutDashboard,
   notifications: Bell,
   products: Package,
+  inventory: Package,
   sales: Store,
+  stock: ClipboardList,
+  events: ScrollText,
   collections: Truck,
   wallet: Wallet,
   discounts: Tag,

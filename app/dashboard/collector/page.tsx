@@ -6,6 +6,9 @@ import { createCollectionAction } from "./actions";
 import { markHandoverAction } from "./handover-actions";
 import { SubmitButton } from "@/components/form/submit-button";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { ResponsiveFormDrawer } from "@/components/form/responsive-form-drawer";
+import { CollectorHandoverForm } from "./handover-form";
 
 type CollectorCollectionRow = {
   id: string;
@@ -37,6 +40,14 @@ export default async function CollectorDashboard() {
     .eq("collector_id", userId)
     .order("created_at", { ascending: false });
 
+  const { data: shops } = await supabase
+    .from("shops")
+    .select("id, name")
+    .order("name", { ascending: true })
+    .limit(200);
+
+  const shopOptions = (shops ?? []) as Array<{ id: string; name: string }>;
+
   return (
     <div className="space-y-10">
       <header className="space-y-2">
@@ -47,32 +58,32 @@ export default async function CollectorDashboard() {
         </p>
       </header>
 
-      <section className="rounded border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Create collection</h2>
-        <form action={createCollectionAction} className="grid gap-3 max-w-xl">
-          <label className="grid gap-1">
-            <span className="text-sm">Batch reference</span>
-            <Input
-              name="batch_id"
-              className="font-mono text-sm"
-              placeholder="Paste batch reference"
-              required
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Collected quantity</span>
-            <Input
-              name="collected_quantity"
-              type="number"
-              min="1"
-              required
-            />
-          </label>
-          <SubmitButton className="w-fit" pendingText="Recording...">
-            Record
-          </SubmitButton>
-        </form>
-      </section>
+      <div>
+        <ResponsiveFormDrawer
+          title="Create collection"
+          description="Record a collection against a batch."
+          trigger={<Button>Record collection</Button>}
+        >
+          <form action={createCollectionAction} className="grid gap-4">
+            <label className="grid gap-2">
+              <span className="text-sm">Batch reference</span>
+              <Input
+                name="batch_id"
+                className="font-mono text-sm"
+                placeholder="Paste batch reference"
+                required
+              />
+            </label>
+            <label className="grid gap-2">
+              <span className="text-sm">Collected quantity</span>
+              <Input name="collected_quantity" type="number" min="1" required />
+            </label>
+            <SubmitButton className="w-fit" pendingText="Recording...">
+              Record
+            </SubmitButton>
+          </form>
+        </ResponsiveFormDrawer>
+      </div>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">My collections</h2>
@@ -102,18 +113,17 @@ export default async function CollectorDashboard() {
                   <td className="p-3">{c.handed_to_shop ? "Yes" : "No"}</td>
                   <td className="p-3">
                     {!c.handed_to_shop ? (
-                      <form action={markHandoverAction} className="flex gap-2">
-                        <input type="hidden" name="collection_id" value={c.id} />
-                        <Input
-                          name="handover_proof"
-                          className="h-8 text-xs"
-                          placeholder="proof reference"
-                          required
+                      shopOptions.length > 0 ? (
+                        <CollectorHandoverForm
+                          collectionId={c.id}
+                          shops={shopOptions}
+                          action={markHandoverAction}
                         />
-                        <SubmitButton size="sm" variant="outline" pendingText="Saving...">
-                          Mark
-                        </SubmitButton>
-                      </form>
+                      ) : (
+                        <span className="text-foreground/60 text-xs">
+                          No shops found.
+                        </span>
+                      )
                     ) : (
                       <span className="text-foreground/60 text-xs">Recorded</span>
                     )}

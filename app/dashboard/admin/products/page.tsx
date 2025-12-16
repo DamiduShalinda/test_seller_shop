@@ -1,9 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SubmitButton } from "@/components/form/submit-button";
+import { Button } from "@/components/ui/button";
+import { ResponsiveFormDrawer } from "@/components/form/responsive-form-drawer";
 import { getUserDisplayNameMap } from "@/lib/supabase/user-display-name";
 import { createProductAsAdminAction } from "./actions";
 
@@ -39,12 +40,13 @@ export default async function AdminProductsPage() {
         </p>
       </header>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Add product</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form action={createProductAsAdminAction} className="grid gap-4 max-w-2xl">
+      <div>
+        <ResponsiveFormDrawer
+          title="Add product"
+          description="Create a new product (owned by your admin user)."
+          trigger={<Button>Add product</Button>}
+        >
+          <form action={createProductAsAdminAction} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="name">Name</Label>
               <Input id="name" name="name" required />
@@ -57,8 +59,8 @@ export default async function AdminProductsPage() {
               Create product
             </SubmitButton>
           </form>
-        </CardContent>
-      </Card>
+        </ResponsiveFormDrawer>
+      </div>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Latest products (100)</h2>

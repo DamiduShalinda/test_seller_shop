@@ -6,6 +6,9 @@ import { createDisputeAction } from "./actions";
 import { SubmitButton } from "@/components/form/submit-button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { ResponsiveFormDrawer } from "@/components/form/responsive-form-drawer";
+import { Label } from "@/components/ui/label";
 
 export default async function SellerDisputesPage() {
   const role = await getMyRole();
@@ -34,41 +37,38 @@ export default async function SellerDisputesPage() {
         </p>
       </header>
 
-      <section className="rounded border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Create dispute</h2>
-        <form action={createDisputeAction} className="grid gap-3 max-w-xl">
-          <label className="grid gap-1">
-            <span className="text-sm">Entity</span>
-            <select name="entity" className="border rounded px-3 py-2 bg-background">
-              <option value="batches">batches</option>
-              <option value="items">items</option>
-              <option value="sales">sales</option>
-              <option value="payouts">payouts</option>
-              <option value="discounts">discounts</option>
-              <option value="collections">collections</option>
-            </select>
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Entity reference</span>
-            <Input
-              name="entity_id"
-              className="font-mono text-sm"
-              placeholder="Paste reference"
-              required
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Message</span>
-            <Textarea
-              name="message"
-              required
-            />
-          </label>
-          <SubmitButton className="w-fit" pendingText="Submitting...">
-            Submit
-          </SubmitButton>
-        </form>
-      </section>
+      <div>
+        <ResponsiveFormDrawer
+          title="Create dispute"
+          description="Raise a dispute with an audit trail."
+          trigger={<Button>Create dispute</Button>}
+        >
+          <form action={createDisputeAction} className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="entity">Entity</Label>
+              <select id="entity" name="entity" className="border rounded px-3 py-2 bg-background">
+                <option value="batches">batches</option>
+                <option value="items">items</option>
+                <option value="sales">sales</option>
+                <option value="payouts">payouts</option>
+                <option value="discounts">discounts</option>
+                <option value="collections">collections</option>
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="entity_id">Entity reference</Label>
+              <Input id="entity_id" name="entity_id" className="font-mono text-sm" required />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="message">Message</Label>
+              <Textarea id="message" name="message" required />
+            </div>
+            <SubmitButton className="w-fit" pendingText="Submitting...">
+              Submit dispute
+            </SubmitButton>
+          </form>
+        </ResponsiveFormDrawer>
+      </div>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">My disputes</h2>

@@ -102,9 +102,7 @@ create table batches (
   created_at timestamptz default now()
 );
 
--- Seller cannot add same product twice
-create unique index batches_seller_product_unique
-on batches(seller_id, product_id);
+-- NOTE: sellers can create multiple batches for the same product.
 
 -- ===============================
 -- ITEMS (PER-ITEM BARCODE)

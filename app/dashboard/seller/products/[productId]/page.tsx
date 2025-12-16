@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SubmitButton } from "@/components/form/submit-button";
+import { ResponsiveFormDrawer } from "@/components/form/responsive-form-drawer";
 import { archiveProductAction, updateProductAction } from "../actions";
 
 type ProductRow = {
@@ -61,39 +62,58 @@ export default async function SellerProductDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Edit</CardTitle>
+          <CardTitle className="text-lg">Details</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-6 max-w-2xl">
-            <form action={updateProductAction} className="grid gap-4">
-              <input type="hidden" name="product_id" value={p.id} />
-              <div className="grid gap-2">
-                <Label htmlFor="name">Name</Label>
-                <Input id="name" name="name" defaultValue={p.name} required />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="description">Description (optional)</Label>
-                <Textarea
-                  id="description"
-                  name="description"
-                  defaultValue={p.description ?? ""}
-                />
-              </div>
-              <SubmitButton className="w-fit" pendingText="Saving...">
-                Save changes
-              </SubmitButton>
-            </form>
+          <div className="flex flex-wrap gap-3">
+            <ResponsiveFormDrawer
+              title="Edit product"
+              description="Update name/description."
+              trigger={<Button>Edit</Button>}
+            >
+              <form action={updateProductAction} className="grid gap-4">
+                <input type="hidden" name="product_id" value={p.id} />
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Name</Label>
+                  <Input id="name" name="name" defaultValue={p.name} required />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="description">Description (optional)</Label>
+                  <Textarea
+                    id="description"
+                    name="description"
+                    defaultValue={p.description ?? ""}
+                  />
+                </div>
+                <SubmitButton className="w-fit" pendingText="Saving...">
+                  Save changes
+                </SubmitButton>
+              </form>
+            </ResponsiveFormDrawer>
 
-            <form action={archiveProductAction}>
-              <input type="hidden" name="product_id" value={p.id} />
-              <SubmitButton
-                variant="destructive"
-                disabled={Boolean(p.archived_at)}
-                pendingText="Archiving..."
-              >
-                {p.archived_at ? "Archived" : "Archive product"}
-              </SubmitButton>
-            </form>
+            <ResponsiveFormDrawer
+              title="Archive product"
+              description="Archiving hides this product from selection but keeps history."
+              trigger={
+                <Button variant="destructive" disabled={Boolean(p.archived_at)}>
+                  {p.archived_at ? "Archived" : "Archive"}
+                </Button>
+              }
+            >
+              <form action={archiveProductAction} className="grid gap-4">
+                <input type="hidden" name="product_id" value={p.id} />
+                <p className="text-sm text-muted-foreground">
+                  This cannot be undone from the UI.
+                </p>
+                <SubmitButton
+                  variant="destructive"
+                  disabled={Boolean(p.archived_at)}
+                  pendingText="Archiving..."
+                >
+                  Confirm archive
+                </SubmitButton>
+              </form>
+            </ResponsiveFormDrawer>
           </div>
         </CardContent>
       </Card>

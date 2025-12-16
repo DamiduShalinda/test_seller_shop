@@ -5,6 +5,9 @@ import { getMyRole } from "@/lib/supabase/profile";
 import { requestPayoutAction } from "../wallet-actions";
 import { SubmitButton } from "@/components/form/submit-button";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { ResponsiveFormDrawer } from "@/components/form/responsive-form-drawer";
+import { Label } from "@/components/ui/label";
 
 export default async function SellerWalletPage() {
   const role = await getMyRole();
@@ -51,21 +54,21 @@ export default async function SellerWalletPage() {
         <div className="text-3xl font-semibold">
           {(wallet?.balance ?? 0).toFixed(2)}
         </div>
-        <form action={requestPayoutAction} className="flex gap-3 items-end">
-          <label className="grid gap-1">
-            <span className="text-sm">Request payout amount</span>
-            <Input
-              name="amount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              required
-            />
-          </label>
-          <SubmitButton pendingText="Requesting...">
-            Request
-          </SubmitButton>
-        </form>
+        <ResponsiveFormDrawer
+          title="Request payout"
+          description="Submit a payout request for admin approval."
+          trigger={<Button>Request payout</Button>}
+        >
+          <form action={requestPayoutAction} className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="amount">Amount</Label>
+              <Input id="amount" name="amount" type="number" step="0.01" min="0.01" required />
+            </div>
+            <SubmitButton className="w-fit" pendingText="Requesting...">
+              Request payout
+            </SubmitButton>
+          </form>
+        </ResponsiveFormDrawer>
       </section>
 
       <section className="space-y-3">

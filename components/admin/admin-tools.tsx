@@ -3,6 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
+import { ResponsiveFormDrawer } from "@/components/form/responsive-form-drawer";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { LoadingButton } from "@/components/form/loading-button";
+import { CollectedBatchBarcodesTool } from "@/components/admin/collected-batch-barcodes";
 
 type Role = "seller" | "collector" | "shop_owner" | "admin";
 
@@ -44,8 +52,24 @@ type DisputeRow = {
   message: string;
 };
 
-export function AdminTools() {
+export type AdminToolsSection =
+  | "all"
+  | "users"
+  | "inventory"
+  | "workflows"
+  | "adjustments"
+  | "reviews";
+
+export function AdminTools({ section = "all" }: { section?: AdminToolsSection }) {
   const supabase = useMemo(() => createClient(), []);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+
+  const showUsers = section === "all" || section === "users";
+  const showInventory = section === "all" || section === "inventory";
+  const showWorkflows = section === "all" || section === "workflows";
+  const showAdjustments = section === "all" || section === "adjustments";
+  const showReviews = section === "all" || section === "reviews";
+  const showRefresh = section === "all" || section === "workflows" || section === "reviews";
 
   const [setRoleUserId, setSetRoleUserId] = useState("");
   const [setRole, setSetRole] = useState<Role>("seller");
@@ -69,6 +93,10 @@ export function AdminTools() {
   const [rejectedEvents, setRejectedEvents] = useState<RejectedSaleEventRow[]>([]);
   const [adminOpsStatus, setAdminOpsStatus] = useState<string | null>(null);
   const [openDisputes, setOpenDisputes] = useState<DisputeRow[]>([]);
+  const [nameByUserId, setNameByUserId] = useState<Record<string, string>>({});
+  const [batchInfoById, setBatchInfoById] = useState<
+    Record<string, { productName: string; sellerName: string }>
+  >({});
 
   const [slowMovingBatchId, setSlowMovingBatchId] = useState("");
   const [slowMovingValue, setSlowMovingValue] = useState(false);
@@ -132,7 +160,76 @@ export function AdminTools() {
     setReturnRequests((r ?? []) as ReturnRequestRow[]);
     setRejectedEvents((e ?? []) as RejectedSaleEventRow[]);
     setOpenDisputes((d ?? []) as DisputeRow[]);
+
+    const userIds = Array.from(
+      new Set(
+        [
+          ...(p ?? []).map((row) => row.seller_id),
+          ...(r ?? []).map((row) => row.seller_id),
+          ...(e ?? []).map((row) => row.shop_id),
+          ...(d ?? []).map((row) => row.created_by),
+        ].filter(Boolean),
+      ),
+    );
+
+    const batchIds = Array.from(
+      new Set(
+        [
+          ...(discounts ?? []).map((row) => row.batch_id),
+          ...(r ?? []).map((row) => row.batch_id),
+        ].filter(Boolean),
+      ),
+    );
+
+    if (userIds.length) {
+      const [admins, sellers, collectors, shops] = await Promise.all([
+        supabase.from("admins").select("id, name").in("id", userIds),
+        supabase.from("sellers").select("id, name").in("id", userIds),
+        supabase.from("collectors").select("id, name").in("id", userIds),
+        supabase.from("shops").select("id, name").in("id", userIds),
+      ]);
+
+      const map: Record<string, string> = {};
+      for (const row of admins.data ?? []) map[row.id] = row.name;
+      for (const row of sellers.data ?? []) map[row.id] = map[row.id] ?? row.name;
+      for (const row of collectors.data ?? []) map[row.id] = map[row.id] ?? row.name;
+      for (const row of shops.data ?? []) map[row.id] = map[row.id] ?? row.name;
+      setNameByUserId(map);
+    } else {
+      setNameByUserId({});
+    }
+
+    if (batchIds.length) {
+      const { data: batches } = await supabase
+        .from("batches")
+        .select("id, products(name), sellers(name)")
+        .in("id", batchIds);
+
+      const map: Record<string, { productName: string; sellerName: string }> = {};
+      for (const row of (batches ?? []) as Array<{
+        id: string;
+        products: { name: string } | Array<{ name: string }> | null;
+        sellers: { name: string } | Array<{ name: string }> | null;
+      }>) {
+        const product = Array.isArray(row.products) ? row.products[0] : row.products;
+        const seller = Array.isArray(row.sellers) ? row.sellers[0] : row.sellers;
+        map[row.id] = { productName: product?.name ?? "", sellerName: seller?.name ?? "" };
+      }
+      setBatchInfoById(map);
+    } else {
+      setBatchInfoById({});
+    }
   }, [supabase]);
+
+  async function run(key: string, fn: () => Promise<void>) {
+    if (busyKey) return;
+    setBusyKey(key);
+    try {
+      await fn();
+    } finally {
+      setBusyKey(null);
+    }
+  }
 
   async function decideDiscount(id: string, status: "accepted" | "rejected") {
     setAdminOpsStatus(null);
@@ -282,8 +379,9 @@ export function AdminTools() {
   }
 
   useEffect(() => {
+    if (!showWorkflows && !showReviews) return;
     refreshWorkflows().catch(() => {});
-  }, [refreshWorkflows]);
+  }, [refreshWorkflows, showReviews, showWorkflows]);
 
   async function callAdminSetRole() {
     setSetRoleResult(null);
@@ -358,206 +456,395 @@ export function AdminTools() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Set user role</h2>
-        <div className="grid gap-3 max-w-xl">
-          <label className="grid gap-1">
-            <span className="text-sm">User id</span>
-            <input
-              value={setRoleUserId}
-              onChange={(e) => setSetRoleUserId(e.target.value)}
-              className="border rounded px-3 py-2 bg-background font-mono text-sm"
-              placeholder="uuid"
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Role</span>
-            <select
-              value={setRole}
-              onChange={(e) => setSetRole(e.target.value as Role)}
-              className="border rounded px-3 py-2 bg-background"
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {showUsers ? (
+            <ResponsiveFormDrawer
+              title="Set user role"
+              description="Assign a role and create the corresponding profile row."
+              trigger={<Button>Set role</Button>}
             >
-              <option value="seller">seller</option>
-              <option value="collector">collector</option>
-              <option value="shop_owner">shop_owner</option>
-              <option value="admin">admin</option>
-            </select>
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Name (optional)</span>
-            <input
-              value={setRoleName}
-              onChange={(e) => setSetRoleName(e.target.value)}
-              className="border rounded px-3 py-2 bg-background"
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">
-              Bootstrap secret (only for first admin)
-            </span>
-            <input
-              value={bootstrapSecret}
-              onChange={(e) => setBootstrapSecret(e.target.value)}
-              className="border rounded px-3 py-2 bg-background font-mono text-sm"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={callAdminSetRole}
-            className="px-4 py-2 rounded bg-foreground text-background text-sm w-fit"
-          >
-            Set role
-          </button>
-          {setRoleResult && (
-            <pre className="text-xs font-mono p-3 rounded border overflow-auto">
-              {setRoleResult}
-            </pre>
-          )}
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="user_id">User id</Label>
+                  <Input
+                    id="user_id"
+                    value={setRoleUserId}
+                    onChange={(e) => setSetRoleUserId(e.target.value)}
+                    className="font-mono text-sm"
+                    placeholder="Paste user id"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="role">Role</Label>
+                  <select
+                    id="role"
+                    value={setRole}
+                    onChange={(e) => setSetRole(e.target.value as Role)}
+                    className="border rounded px-3 py-2 bg-background"
+                  >
+                    <option value="seller">seller</option>
+                    <option value="collector">collector</option>
+                    <option value="shop_owner">shop_owner</option>
+                    <option value="admin">admin</option>
+                  </select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Name (optional)</Label>
+                  <Input
+                    id="name"
+                    value={setRoleName}
+                    onChange={(e) => setSetRoleName(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="bootstrap">
+                    Bootstrap secret (only for first admin)
+                  </Label>
+                  <Input
+                    id="bootstrap"
+                    value={bootstrapSecret}
+                    onChange={(e) => setBootstrapSecret(e.target.value)}
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <LoadingButton
+                  loading={busyKey === "setRole"}
+                  onClick={() => run("setRole", callAdminSetRole)}
+                  className="w-fit"
+                >
+                  Set role
+                </LoadingButton>
+                {setRoleResult ? (
+                  <pre className="text-xs font-mono p-3 rounded border bg-background overflow-auto max-h-40">
+                    {setRoleResult}
+                  </pre>
+                ) : null}
+              </div>
+            </ResponsiveFormDrawer>
+          ) : null}
+
+          {showInventory ? (
+            <>
+              <ResponsiveFormDrawer
+                title="Create items (barcodes)"
+                description="Create per-item barcodes for an existing batch."
+                trigger={<Button variant="secondary">Create items</Button>}
+              >
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="batch_id">Batch reference</Label>
+                    <Input
+                      id="batch_id"
+                      value={batchId}
+                      onChange={(e) => setBatchId(e.target.value)}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="barcodes">Barcodes (one per line)</Label>
+                    <Textarea
+                      id="barcodes"
+                      value={barcodes}
+                      onChange={(e) => setBarcodes(e.target.value)}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                  <LoadingButton
+                    loading={busyKey === "createItems"}
+                    onClick={() => run("createItems", callCreateItems)}
+                    className="w-fit"
+                    variant="secondary"
+                  >
+                    Create
+                  </LoadingButton>
+                  {createItemsResult ? (
+                    <pre className="text-xs font-mono p-3 rounded border bg-background overflow-auto max-h-40">
+                      {createItemsResult}
+                    </pre>
+                  ) : null}
+                </div>
+              </ResponsiveFormDrawer>
+
+              <ResponsiveFormDrawer
+                title="Stock item to shop"
+                description="Move an item to a shop inventory by barcode."
+                trigger={<Button variant="secondary">Stock item</Button>}
+              >
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="stock_barcode">Barcode</Label>
+                    <Input
+                      id="stock_barcode"
+                      value={stockBarcode}
+                      onChange={(e) => setStockBarcode(e.target.value)}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="shop_id">Shop id</Label>
+                    <Input
+                      id="shop_id"
+                      value={stockShopId}
+                      onChange={(e) => setStockShopId(e.target.value)}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                  <LoadingButton
+                    loading={busyKey === "stock"}
+                    onClick={() => run("stock", callStockItem)}
+                    className="w-fit"
+                    variant="secondary"
+                  >
+                    Stock
+                  </LoadingButton>
+                  {stockResult ? (
+                    <pre className="text-xs font-mono p-3 rounded border bg-background overflow-auto max-h-40">
+                      {stockResult}
+                    </pre>
+                  ) : null}
+                </div>
+              </ResponsiveFormDrawer>
+
+              <CollectedBatchBarcodesTool />
+            </>
+          ) : null}
+
+          {showRefresh ? (
+            <Button
+              variant="outline"
+              onClick={() => run("refresh", refreshWorkflows)}
+              disabled={busyKey === "refresh"}
+            >
+              Refresh
+            </Button>
+          ) : null}
         </div>
+        {showRefresh && adminOpsStatus ? (
+          <div className="text-sm text-muted-foreground">{adminOpsStatus}</div>
+        ) : null}
       </section>
 
-      <section className="rounded border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Create item barcodes for batch</h2>
-        <div className="grid gap-3 max-w-xl">
-          <label className="grid gap-1">
-            <span className="text-sm">Batch id</span>
-            <input
-              value={batchId}
-              onChange={(e) => setBatchId(e.target.value)}
-              className="border rounded px-3 py-2 bg-background font-mono text-sm"
-              placeholder="uuid"
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Barcodes (one per line)</span>
-            <textarea
-              value={barcodes}
-              onChange={(e) => setBarcodes(e.target.value)}
-              className="border rounded px-3 py-2 bg-background font-mono text-sm min-h-32"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={callCreateItems}
-            className="px-4 py-2 rounded border text-sm w-fit"
-          >
-            Create items
-          </button>
-          {createItemsResult && (
-            <pre className="text-xs font-mono p-3 rounded border overflow-auto">
-              {createItemsResult}
-            </pre>
-          )}
-        </div>
-      </section>
+      {showWorkflows ? (
+        <section className="rounded border p-5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">Workflow controls</h2>
+            <div className="flex flex-wrap gap-2">
+              <LoadingButton
+                loading={busyKey === "discountExpiry"}
+                onClick={() => run("discountExpiry", runDiscountExpiryJob)}
+                variant="outline"
+              >
+                Run discount expiry job
+              </LoadingButton>
+              <LoadingButton
+                loading={busyKey === "nightly"}
+                onClick={() => run("nightly", runNightlyNotifications)}
+                variant="outline"
+              >
+                Generate nightly notifications
+              </LoadingButton>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
-      <section className="rounded border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Stock item into shop</h2>
-        <div className="grid gap-3 max-w-xl">
-          <label className="grid gap-1">
-            <span className="text-sm">Barcode</span>
-            <input
-              value={stockBarcode}
-              onChange={(e) => setStockBarcode(e.target.value)}
-              className="border rounded px-3 py-2 bg-background font-mono"
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Shop id</span>
-            <input
-              value={stockShopId}
-              onChange={(e) => setStockShopId(e.target.value)}
-              className="border rounded px-3 py-2 bg-background font-mono text-sm"
-              placeholder="uuid"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={callStockItem}
-            className="px-4 py-2 rounded border text-sm w-fit"
+      {showAdjustments ? (
+        <section className="rounded border p-5 space-y-4">
+          <h2 className="text-lg font-semibold">Admin adjustments</h2>
+          <div className="flex flex-wrap gap-2">
+          <ResponsiveFormDrawer
+            title="Slow-moving batch"
+            description="Flag a batch for reporting/alerts."
+            trigger={<Button variant="outline">Slow-moving</Button>}
           >
-            Stock item
-          </button>
-          {stockResult && (
-            <pre className="text-xs font-mono p-3 rounded border overflow-auto">
-              {stockResult}
-            </pre>
-          )}
-        </div>
-      </section>
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="slow_batch">Batch reference</Label>
+                <Input
+                  id="slow_batch"
+                  value={slowMovingBatchId}
+                  onChange={(e) => setSlowMovingBatchId(e.target.value)}
+                  className="font-mono text-sm"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={slowMovingValue}
+                  onCheckedChange={(v) => setSlowMovingValue(Boolean(v))}
+                />
+                Mark as slow-moving
+              </label>
+              <LoadingButton
+                loading={busyKey === "slowMoving"}
+                onClick={() => run("slowMoving", setSlowMoving)}
+                variant="outline"
+                className="w-fit"
+              >
+                Update
+              </LoadingButton>
+              {slowMovingResult ? (
+                <div className="text-sm text-muted-foreground">{slowMovingResult}</div>
+              ) : null}
+            </div>
+          </ResponsiveFormDrawer>
 
-      <section className="rounded border p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Workflow controls</h2>
-          <button
-            type="button"
-            onClick={() => refreshWorkflows()}
-            className="px-4 py-2 rounded border text-sm"
+          <ResponsiveFormDrawer
+            title="Set commission"
+            description="Create an active commission rule for a seller."
+            trigger={<Button variant="outline">Commission</Button>}
           >
-            Refresh
-          </button>
-        </div>
-        <div className="flex gap-3 flex-wrap">
-          <button
-            type="button"
-            onClick={runDiscountExpiryJob}
-            className="px-4 py-2 rounded border text-sm"
-          >
-            Run discount expiry job
-          </button>
-          <button
-            type="button"
-            onClick={runNightlyNotifications}
-            className="px-4 py-2 rounded border text-sm"
-          >
-            Generate nightly notifications
-          </button>
-        </div>
-        {adminOpsStatus && (
-          <div className="text-sm text-foreground/70">{adminOpsStatus}</div>
-        )}
-      </section>
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="commission_seller">Seller id</Label>
+                <Input
+                  id="commission_seller"
+                  value={commissionSellerId}
+                  onChange={(e) => setCommissionSellerId(e.target.value)}
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="commission_type">Type</Label>
+                <select
+                  id="commission_type"
+                  value={commissionType}
+                  onChange={(e) =>
+                    setCommissionType(e.target.value as "percentage" | "fixed")
+                  }
+                  className="border rounded px-3 py-2 bg-background"
+                >
+                  <option value="percentage">percentage</option>
+                  <option value="fixed">fixed</option>
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="commission_value">Value</Label>
+                <Input
+                  id="commission_value"
+                  value={commissionValue}
+                  onChange={(e) => setCommissionValue(e.target.value)}
+                  placeholder={commissionType === "percentage" ? "e.g. 10" : "e.g. 5.00"}
+                />
+              </div>
+              <LoadingButton
+                loading={busyKey === "commission"}
+                onClick={() => run("commission", setCommission)}
+                variant="outline"
+                className="w-fit"
+              >
+                Set commission
+              </LoadingButton>
+              {commissionResult ? (
+                <div className="text-sm text-muted-foreground">{commissionResult}</div>
+              ) : null}
+            </div>
+          </ResponsiveFormDrawer>
 
-      <section className="rounded border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Slow-moving batches</h2>
-        <div className="grid gap-3 max-w-xl">
-          <label className="grid gap-1">
-            <span className="text-sm">Batch id</span>
-            <input
-              value={slowMovingBatchId}
-              onChange={(e) => setSlowMovingBatchId(e.target.value)}
-              className="border rounded px-3 py-2 bg-background font-mono text-sm"
-              placeholder="uuid"
-            />
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={slowMovingValue}
-              onChange={(e) => setSlowMovingValue(e.target.checked)}
-            />
-            Mark as slow-moving
-          </label>
-          <button
-            type="button"
-            onClick={setSlowMoving}
-            className="px-4 py-2 rounded border text-sm w-fit"
+          <ResponsiveFormDrawer
+            title="Override batch price"
+            description="Audit-logged price override (admin-only)."
+            trigger={<Button variant="outline">Override price</Button>}
           >
-            Update
-          </button>
-          {slowMovingResult && (
-            <div className="text-sm text-foreground/70">{slowMovingResult}</div>
-          )}
-        </div>
-      </section>
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="override_batch">Batch reference</Label>
+                <Input
+                  id="override_batch"
+                  value={overrideBatchId}
+                  onChange={(e) => setOverrideBatchId(e.target.value)}
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="override_price">New base price</Label>
+                <Input
+                  id="override_price"
+                  value={overridePrice}
+                  onChange={(e) => setOverridePrice(e.target.value)}
+                  placeholder="e.g. 99.99"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="override_reason">Reason</Label>
+                <Input
+                  id="override_reason"
+                  value={overrideReason}
+                  onChange={(e) => setOverrideReason(e.target.value)}
+                />
+              </div>
+              <LoadingButton
+                loading={busyKey === "override"}
+                onClick={() => run("override", overrideBatchPrice)}
+                variant="outline"
+                className="w-fit"
+              >
+                Override price
+              </LoadingButton>
+              {overrideResult ? (
+                <div className="text-sm text-muted-foreground">{overrideResult}</div>
+              ) : null}
+            </div>
+          </ResponsiveFormDrawer>
 
-      <section className="rounded border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Pending discounts</h2>
-        <div className="rounded border overflow-hidden">
-          <table className="w-full text-sm">
+          <ResponsiveFormDrawer
+            title="Adjust batch quantity"
+            description="Audit-logged quantity adjustment."
+            trigger={<Button variant="outline">Adjust quantity</Button>}
+          >
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="adjust_batch">Batch reference</Label>
+                <Input
+                  id="adjust_batch"
+                  value={adjustBatchId}
+                  onChange={(e) => setAdjustBatchId(e.target.value)}
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="adjust_qty">New quantity</Label>
+                <Input
+                  id="adjust_qty"
+                  value={adjustQuantity}
+                  onChange={(e) => setAdjustQuantity(e.target.value)}
+                  placeholder="e.g. 50"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="adjust_reason">Reason</Label>
+                <Input
+                  id="adjust_reason"
+                  value={adjustReason}
+                  onChange={(e) => setAdjustReason(e.target.value)}
+                />
+              </div>
+              <LoadingButton
+                loading={busyKey === "adjustQty"}
+                onClick={() => run("adjustQty", adjustBatchQuantity)}
+                variant="outline"
+                className="w-fit"
+              >
+                Adjust quantity
+              </LoadingButton>
+              {adjustResult ? (
+                <div className="text-sm text-muted-foreground">{adjustResult}</div>
+              ) : null}
+            </div>
+          </ResponsiveFormDrawer>
+          </div>
+        </section>
+      ) : null}
+
+      {showWorkflows ? (
+        <section className="rounded border p-5 space-y-4">
+          <h2 className="text-lg font-semibold">Pending discounts</h2>
+        <div className="rounded border overflow-x-auto">
+          <table className="w-full min-w-max text-sm">
             <thead className="bg-muted/30">
               <tr className="text-left">
-                <th className="p-3">Batch</th>
+                <th className="p-3">Product</th>
+                <th className="p-3">Seller</th>
                 <th className="p-3">Price</th>
                 <th className="p-3">Limit</th>
                 <th className="p-3">Actions</th>
@@ -566,7 +853,12 @@ export function AdminTools() {
             <tbody>
               {pendingDiscounts.map((d) => (
                 <tr key={d.id} className="border-t">
-                  <td className="p-3 font-mono text-xs">{d.batch_id}</td>
+                  <td className="p-3">
+                    {batchInfoById[d.batch_id]?.productName || "-"}
+                  </td>
+                  <td className="p-3">
+                    {batchInfoById[d.batch_id]?.sellerName || "-"}
+                  </td>
                   <td className="p-3">{Number(d.discount_price).toFixed(2)}</td>
                   <td className="p-3">{d.item_limit ?? "-"}</td>
                   <td className="p-3 flex gap-2">
@@ -574,6 +866,7 @@ export function AdminTools() {
                       type="button"
                       onClick={() => decideDiscount(d.id, "accepted")}
                       className="px-2 py-1 rounded border text-xs"
+                      disabled={Boolean(busyKey)}
                     >
                       Accept
                     </button>
@@ -581,6 +874,7 @@ export function AdminTools() {
                       type="button"
                       onClick={() => decideDiscount(d.id, "rejected")}
                       className="px-2 py-1 rounded border text-xs"
+                      disabled={Boolean(busyKey)}
                     >
                       Reject
                     </button>
@@ -589,7 +883,7 @@ export function AdminTools() {
               ))}
               {pendingDiscounts.length === 0 && (
                 <tr>
-                  <td className="p-3 text-foreground/60" colSpan={4}>
+                  <td className="p-3 text-foreground/60" colSpan={5}>
                     No pending discounts.
                   </td>
                 </tr>
@@ -597,12 +891,14 @@ export function AdminTools() {
             </tbody>
           </table>
         </div>
-      </section>
+        </section>
+      ) : null}
 
-      <section className="rounded border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Payout approvals</h2>
-        <div className="rounded border overflow-hidden">
-          <table className="w-full text-sm">
+      {showWorkflows ? (
+        <section className="rounded border p-5 space-y-4">
+          <h2 className="text-lg font-semibold">Payout approvals</h2>
+        <div className="rounded border overflow-x-auto">
+          <table className="w-full min-w-max text-sm">
             <thead className="bg-muted/30">
               <tr className="text-left">
                 <th className="p-3">Seller</th>
@@ -614,7 +910,7 @@ export function AdminTools() {
             <tbody>
               {payouts.map((p) => (
                 <tr key={p.id} className="border-t">
-                  <td className="p-3 font-mono text-xs">{p.seller_id}</td>
+                  <td className="p-3">{nameByUserId[p.seller_id] ?? "-"}</td>
                   <td className="p-3">{Number(p.amount).toFixed(2)}</td>
                   <td className="p-3 font-mono">{p.status}</td>
                   <td className="p-3 flex gap-2">
@@ -624,6 +920,7 @@ export function AdminTools() {
                           type="button"
                           onClick={() => decidePayout(p.id, "approved")}
                           className="px-2 py-1 rounded border text-xs"
+                          disabled={Boolean(busyKey)}
                         >
                           Approve
                         </button>
@@ -631,6 +928,7 @@ export function AdminTools() {
                           type="button"
                           onClick={() => decidePayout(p.id, "rejected")}
                           className="px-2 py-1 rounded border text-xs"
+                          disabled={Boolean(busyKey)}
                         >
                           Reject
                         </button>
@@ -640,6 +938,7 @@ export function AdminTools() {
                         type="button"
                         onClick={() => decidePayout(p.id, "paid")}
                         className="px-2 py-1 rounded border text-xs"
+                        disabled={Boolean(busyKey)}
                       >
                         Mark paid
                       </button>
@@ -657,16 +956,18 @@ export function AdminTools() {
             </tbody>
           </table>
         </div>
-      </section>
+        </section>
+      ) : null}
 
-      <section className="rounded border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Return requests</h2>
-        <div className="rounded border overflow-hidden">
-          <table className="w-full text-sm">
+      {showWorkflows ? (
+        <section className="rounded border p-5 space-y-4">
+          <h2 className="text-lg font-semibold">Return requests</h2>
+        <div className="rounded border overflow-x-auto">
+          <table className="w-full min-w-max text-sm">
             <thead className="bg-muted/30">
               <tr className="text-left">
                 <th className="p-3">Seller</th>
-                <th className="p-3">Batch</th>
+                <th className="p-3">Product</th>
                 <th className="p-3">Qty</th>
                 <th className="p-3">Status</th>
                 <th className="p-3">Actions</th>
@@ -675,8 +976,8 @@ export function AdminTools() {
             <tbody>
               {returnRequests.map((r) => (
                 <tr key={r.id} className="border-t">
-                  <td className="p-3 font-mono text-xs">{r.seller_id}</td>
-                  <td className="p-3 font-mono text-xs">{r.batch_id}</td>
+                  <td className="p-3">{nameByUserId[r.seller_id] ?? "-"}</td>
+                  <td className="p-3">{batchInfoById[r.batch_id]?.productName || "-"}</td>
                   <td className="p-3">{r.requested_quantity}</td>
                   <td className="p-3 font-mono">{r.status}</td>
                   <td className="p-3 flex gap-2">
@@ -686,6 +987,7 @@ export function AdminTools() {
                           type="button"
                           onClick={() => decideReturn(r.id, "approved")}
                           className="px-2 py-1 rounded border text-xs"
+                          disabled={Boolean(busyKey)}
                         >
                           Approve
                         </button>
@@ -693,6 +995,7 @@ export function AdminTools() {
                           type="button"
                           onClick={() => decideReturn(r.id, "rejected")}
                           className="px-2 py-1 rounded border text-xs"
+                          disabled={Boolean(busyKey)}
                         >
                           Reject
                         </button>
@@ -702,6 +1005,7 @@ export function AdminTools() {
                         type="button"
                         onClick={() => completeReturn(r.id)}
                         className="px-2 py-1 rounded border text-xs"
+                        disabled={Boolean(busyKey)}
                       >
                         Complete
                       </button>
@@ -719,143 +1023,14 @@ export function AdminTools() {
             </tbody>
           </table>
         </div>
-      </section>
+        </section>
+      ) : null}
 
-      <section className="rounded border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Commissions</h2>
-        <div className="grid gap-3 max-w-xl">
-          <label className="grid gap-1">
-            <span className="text-sm">Seller id</span>
-            <input
-              value={commissionSellerId}
-              onChange={(e) => setCommissionSellerId(e.target.value)}
-              className="border rounded px-3 py-2 bg-background font-mono text-sm"
-              placeholder="uuid"
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Type</span>
-            <select
-              value={commissionType}
-              onChange={(e) =>
-                setCommissionType(e.target.value as "percentage" | "fixed")
-              }
-              className="border rounded px-3 py-2 bg-background"
-            >
-              <option value="percentage">percentage</option>
-              <option value="fixed">fixed</option>
-            </select>
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Value</span>
-            <input
-              value={commissionValue}
-              onChange={(e) => setCommissionValue(e.target.value)}
-              className="border rounded px-3 py-2 bg-background"
-              placeholder={commissionType === "percentage" ? "e.g. 10" : "e.g. 5.00"}
-            />
-          </label>
-          <button
-            type="button"
-            onClick={setCommission}
-            className="px-4 py-2 rounded border text-sm w-fit"
-          >
-            Set commission
-          </button>
-          {commissionResult && (
-            <div className="text-sm text-foreground/70">{commissionResult}</div>
-          )}
-        </div>
-      </section>
-
-      <section className="rounded border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Price override (audit logged)</h2>
-        <div className="grid gap-3 max-w-xl">
-          <label className="grid gap-1">
-            <span className="text-sm">Batch id</span>
-            <input
-              value={overrideBatchId}
-              onChange={(e) => setOverrideBatchId(e.target.value)}
-              className="border rounded px-3 py-2 bg-background font-mono text-sm"
-              placeholder="uuid"
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">New base price</span>
-            <input
-              value={overridePrice}
-              onChange={(e) => setOverridePrice(e.target.value)}
-              className="border rounded px-3 py-2 bg-background"
-              placeholder="0.00"
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Reason</span>
-            <input
-              value={overrideReason}
-              onChange={(e) => setOverrideReason(e.target.value)}
-              className="border rounded px-3 py-2 bg-background"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={overrideBatchPrice}
-            className="px-4 py-2 rounded border text-sm w-fit"
-          >
-            Override price
-          </button>
-          {overrideResult && (
-            <div className="text-sm text-foreground/70">{overrideResult}</div>
-          )}
-        </div>
-      </section>
-
-      <section className="rounded border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Quantity adjustment (audit logged)</h2>
-        <div className="grid gap-3 max-w-xl">
-          <label className="grid gap-1">
-            <span className="text-sm">Batch id</span>
-            <input
-              value={adjustBatchId}
-              onChange={(e) => setAdjustBatchId(e.target.value)}
-              className="border rounded px-3 py-2 bg-background font-mono text-sm"
-              placeholder="uuid"
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">New quantity</span>
-            <input
-              value={adjustQuantity}
-              onChange={(e) => setAdjustQuantity(e.target.value)}
-              className="border rounded px-3 py-2 bg-background"
-              placeholder="e.g. 50"
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Reason</span>
-            <input
-              value={adjustReason}
-              onChange={(e) => setAdjustReason(e.target.value)}
-              className="border rounded px-3 py-2 bg-background"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={adjustBatchQuantity}
-            className="px-4 py-2 rounded border text-sm w-fit"
-          >
-            Adjust quantity
-          </button>
-          {adjustResult && (
-            <div className="text-sm text-foreground/70">{adjustResult}</div>
-          )}
-        </div>
-      </section>
-
-      <section className="rounded border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Rejected sale events (review)</h2>
-        <div className="rounded border overflow-hidden">
-          <table className="w-full text-sm">
+      {showReviews ? (
+        <section className="rounded border p-5 space-y-4">
+          <h2 className="text-lg font-semibold">Rejected sale events (review)</h2>
+        <div className="rounded border overflow-x-auto">
+          <table className="w-full min-w-max text-sm">
             <thead className="bg-muted/30">
               <tr className="text-left">
                 <th className="p-3">Shop</th>
@@ -866,7 +1041,7 @@ export function AdminTools() {
             <tbody>
               {rejectedEvents.map((e) => (
                 <tr key={e.id} className="border-t">
-                  <td className="p-3 font-mono text-xs">{e.shop_id}</td>
+                  <td className="p-3">{nameByUserId[e.shop_id] ?? "-"}</td>
                   <td className="p-3 font-mono">{e.barcode}</td>
                   <td className="p-3">{e.reason ?? "-"}</td>
                 </tr>
@@ -881,12 +1056,14 @@ export function AdminTools() {
             </tbody>
           </table>
         </div>
-      </section>
+        </section>
+      ) : null}
 
-      <section className="rounded border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Open disputes</h2>
-        <div className="rounded border overflow-hidden">
-          <table className="w-full text-sm">
+      {showReviews ? (
+        <section className="rounded border p-5 space-y-4">
+          <h2 className="text-lg font-semibold">Open disputes</h2>
+        <div className="rounded border overflow-x-auto">
+          <table className="w-full min-w-max text-sm">
             <thead className="bg-muted/30">
               <tr className="text-left">
                 <th className="p-3">From</th>
@@ -898,31 +1075,33 @@ export function AdminTools() {
             <tbody>
               {openDisputes.map((d) => (
                 <tr key={d.id} className="border-t">
-                  <td className="p-3 font-mono text-xs">
-                    {d.created_by} ({d.role})
+                  <td className="p-3">
+                    <div className="font-medium">
+                      {nameByUserId[d.created_by] ?? "Unknown user"}
+                    </div>
+                    <div className="text-xs text-muted-foreground font-mono">{d.role}</div>
                   </td>
                   <td className="p-3">
                     <div className="font-mono">{d.entity}</div>
-                    <div className="font-mono text-xs text-foreground/60">
-                      {d.entity_id}
-                    </div>
                   </td>
                   <td className="p-3">{d.message}</td>
                   <td className="p-3 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => decideDispute(d.id, "resolved")}
-                      className="px-2 py-1 rounded border text-xs"
+                    <LoadingButton
+                      loading={busyKey === `dispute:${d.id}`}
+                      onClick={() => run(`dispute:${d.id}`, () => decideDispute(d.id, "resolved"))}
+                      size="sm"
+                      variant="outline"
                     >
                       Resolve
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => decideDispute(d.id, "rejected")}
-                      className="px-2 py-1 rounded border text-xs"
+                    </LoadingButton>
+                    <LoadingButton
+                      loading={busyKey === `dispute:${d.id}`}
+                      onClick={() => run(`dispute:${d.id}`, () => decideDispute(d.id, "rejected"))}
+                      size="sm"
+                      variant="outline"
                     >
                       Reject
-                    </button>
+                    </LoadingButton>
                   </td>
                 </tr>
               ))}
@@ -936,7 +1115,8 @@ export function AdminTools() {
             </tbody>
           </table>
         </div>
-      </section>
+        </section>
+      ) : null}
     </div>
   );
 }

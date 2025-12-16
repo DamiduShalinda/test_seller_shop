@@ -48,7 +48,14 @@ export default async function DashboardLayout({
   } else if (role === "collector") {
     navItems.splice(1, 0, { title: "Collections", href: "/dashboard/collector", icon: "collections" });
   } else if (role === "shop_owner") {
-    navItems.splice(1, 0, { title: "Sales", href: "/dashboard/shop", icon: "sales" });
+    navItems.splice(
+      1,
+      0,
+      { title: "Sales", href: "/dashboard/shop/sales", icon: "sales" },
+      { title: "Inventory", href: "/dashboard/shop/inventory", icon: "inventory" },
+      { title: "Stock checker", href: "/dashboard/shop/stock-checker", icon: "stock" },
+      { title: "Sale events", href: "/dashboard/shop/events", icon: "events" },
+    );
   } else if (role === "admin") {
     navItems.splice(
       1,

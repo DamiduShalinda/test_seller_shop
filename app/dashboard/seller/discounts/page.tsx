@@ -4,6 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getMyRole } from "@/lib/supabase/profile";
 import { requestDiscountAction } from "../discount-actions";
 import { SubmitButton } from "@/components/form/submit-button";
+import { Button } from "@/components/ui/button";
+import { ResponsiveFormDrawer } from "@/components/form/responsive-form-drawer";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 type SellerBatchRow = {
   id: string;
@@ -49,53 +53,41 @@ export default async function SellerDiscountsPage() {
         </p>
       </header>
 
-      <section className="rounded border p-5 space-y-4">
-        <h2 className="text-lg font-semibold">Request discount</h2>
-        <form action={requestDiscountAction} className="grid gap-3 max-w-xl">
-          <label className="grid gap-1">
-            <span className="text-sm">Batch</span>
-            <select name="batch_id" className="border rounded px-3 py-2 bg-background">
-              {((batches ?? []) as SellerBatchRow[]).map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.products?.[0]?.name ?? b.id} (status: {b.status})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Discount price</span>
-            <input
-              name="discount_price"
-              type="number"
-              step="0.01"
-              min="0"
-              className="border rounded px-3 py-2 bg-background"
-              required
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Item limit (optional)</span>
-            <input
-              name="item_limit"
-              type="number"
-              min="1"
-              className="border rounded px-3 py-2 bg-background"
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="text-sm">Expires at</span>
-            <input
-              name="expires_at"
-              type="datetime-local"
-              className="border rounded px-3 py-2 bg-background"
-              required
-            />
-          </label>
-          <SubmitButton className="w-fit" pendingText="Submitting...">
-            Submit request
-          </SubmitButton>
-        </form>
-      </section>
+      <div>
+        <ResponsiveFormDrawer
+          title="Request discount"
+          description="Request a discount per batch (admin must accept)."
+          trigger={<Button>Request discount</Button>}
+        >
+          <form action={requestDiscountAction} className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="batch_id">Batch</Label>
+              <select id="batch_id" name="batch_id" className="border rounded px-3 py-2 bg-background">
+                {((batches ?? []) as SellerBatchRow[]).map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.products?.[0]?.name ?? "Product"} (status: {b.status})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="discount_price">Discount price</Label>
+              <Input id="discount_price" name="discount_price" type="number" step="0.01" min="0" required />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="item_limit">Item limit (optional)</Label>
+              <Input id="item_limit" name="item_limit" type="number" min="1" />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="expires_at">Expires at</Label>
+              <Input id="expires_at" name="expires_at" type="datetime-local" required />
+            </div>
+            <SubmitButton className="w-fit" pendingText="Submitting...">
+              Submit request
+            </SubmitButton>
+          </form>
+        </ResponsiveFormDrawer>
+      </div>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">My discount requests</h2>
