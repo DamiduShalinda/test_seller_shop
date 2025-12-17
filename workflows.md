@@ -9,11 +9,10 @@ CREATED
 → SOLD | RETURNED
 
 ## Collection Flow
-1. Collector records the seller's product/batch details while on-site
-2. Collector verifies quantity and condition, then records the collection
-3. Partial collection allowed
-4. Seller confirms the pickup before inventory leaves their location
-5. Collector hands over to shop with proof
+1. Collector records the seller's product/batch (quantity is locked and the pickup is logged automatically)
+2. Seller reviews the pending pickup and confirms it before any movement
+3. Shop owner generates/prints the barcodes for the confirmed quantity (no partial quantities once saved)
+4. Collector hands over to shop with proof
 
 ## Sales Flow
 1. Customer selects item

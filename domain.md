@@ -8,14 +8,15 @@
 ## Seller Rules
 - Collectors capture new products and batches while on-site with the seller
 - One product per seller at one price
-- Quantity editable until collection starts
-- Can cancel batch before collection
-- Seller must confirm pickup after collector submission
+- Pickup quantity is locked as soon as the collector saves the batch
+- Can cancel batch before seller confirmation
+- Seller must confirm the auto-logged pickup before it moves to shops
 - Can withdraw unsold items
 
 ## Batch Rules
 - Each seller product = unique batch
 - Same product from different sellers is always isolated
+- Every batch automatically produces a matching pickup record handled through collections
 - Sold items are immutable
 
 ## Pricing

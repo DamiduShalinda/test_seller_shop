@@ -43,7 +43,7 @@ function generateBarcode(batchId: string) {
   return `B${prefix}-${randomToken}`;
 }
 
-export function CollectedBatchBarcodesTool() {
+export function ShopBatchPrepTool() {
   const supabase = useMemo(() => createClient(), []);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
@@ -59,7 +59,7 @@ export function CollectedBatchBarcodesTool() {
     setExistingBarcodes([]);
     setGeneratedBarcodes([]);
 
-    const { data, error } = await supabase.rpc("rpc_admin_collected_batches", {
+    const { data, error } = await supabase.rpc("rpc_shop_collected_batches", {
       p_limit: 50,
     });
     if (error) {
@@ -87,7 +87,7 @@ export function CollectedBatchBarcodesTool() {
       setGeneratedBarcodes([]);
       setExistingBarcodes([]);
 
-      const { data, error } = await supabase.rpc("rpc_admin_batch_item_barcodes", {
+      const { data, error } = await supabase.rpc("rpc_shop_batch_item_barcodes", {
         p_batch_id: row.batch_id,
         p_limit: 500,
       });
@@ -124,7 +124,7 @@ export function CollectedBatchBarcodesTool() {
       return;
     }
     setStatusMessage(null);
-    const { error } = await supabase.rpc("rpc_admin_create_items", {
+    const { error } = await supabase.rpc("rpc_shop_create_items", {
       p_batch_id: selected.batch_id,
       p_barcodes: generatedBarcodes,
       p_initial_status: "created",
@@ -145,11 +145,11 @@ export function CollectedBatchBarcodesTool() {
 
   return (
     <ResponsiveFormDrawer
-      title="Collected batches (barcodes)"
-      description="Generate and create item barcodes for collected batches so collectors can hand over stock."
+      title="Batch prep (barcodes)"
+      description="Generate and create item barcodes for collected batches before the collector hands them over."
       trigger={
         <Button variant="secondary" onClick={() => run("refresh", refresh)}>
-          Collected batches
+          Open batch prep
         </Button>
       }
     >
@@ -255,24 +255,20 @@ export function CollectedBatchBarcodesTool() {
             </div>
 
             {generatedBarcodes.length > 0 ? (
-              <Textarea
-                value={generatedBarcodes.join("\n")}
-                readOnly
-                className="font-mono text-xs min-h-40"
-              />
+              <Textarea value={generatedBarcodes.join("\n")} readOnly className="font-mono text-xs" />
             ) : null}
 
             {existingBarcodes.length > 0 ? (
-              <details className="text-sm">
-                <summary className="cursor-pointer text-muted-foreground">
+              <div className="space-y-2">
+                <div className="text-xs text-muted-foreground">
                   Existing barcodes ({existingBarcodes.length})
-                </summary>
+                </div>
                 <Textarea
                   value={existingBarcodes.join("\n")}
                   readOnly
-                  className="font-mono text-xs min-h-40 mt-2"
+                  className="font-mono text-xs min-h-[140px]"
                 />
-              </details>
+              </div>
             ) : null}
           </div>
         ) : null}
@@ -280,4 +276,3 @@ export function CollectedBatchBarcodesTool() {
     </ResponsiveFormDrawer>
   );
 }
-

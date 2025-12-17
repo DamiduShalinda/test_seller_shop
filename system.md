@@ -11,7 +11,9 @@ The platform enables:
 - Admin-controlled pricing, discounts, and disputes
 
 Collectors capture seller inventory details while on-site, then sellers confirm the pickup before
-items move toward shops.
+items move toward shops. Saving a batch automatically records the pickup quantity—no separate
+collection entry is required. Shop owners generate/print the barcodes for each confirmed batch
+so collectors can label items prior to the handover.
 
 The system is eventually consistent and supports offline shop sales with
 mandatory synchronization.

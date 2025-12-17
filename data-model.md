@@ -13,7 +13,7 @@
 - items (unique barcode, batch_id, status)
 
 ## Operations
-- collections (seller_id, collector_id, quantities)
+- collections (auto-created pickups per batch: seller_id, collector_id, quantities)
 - shop_inventory (item_id, shop_id)
 - sales (item_id, shop_id, timestamp)
 

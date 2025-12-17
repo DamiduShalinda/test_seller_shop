@@ -56,8 +56,8 @@ export default function Home() {
                 <CardTitle className="text-base">Seller</CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground">
-                Create batches, manage discounts/returns, and track wallet
-                payouts.
+                Review batches created on your behalf, manage discounts/returns,
+                and track wallet payouts.
               </CardContent>
             </Card>
             <Card>
@@ -65,7 +65,7 @@ export default function Home() {
                 <CardTitle className="text-base">Collector</CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground">
-                Record collections and handovers with proof references.
+                Capture seller products/batches and finalize handovers with proof.
               </CardContent>
             </Card>
             <Card>

@@ -42,9 +42,10 @@ export default async function SellerCollectionsPage() {
   return (
     <div className="space-y-10">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold">Collections to confirm</h1>
+        <h1 className="text-2xl font-semibold">Pickups to confirm</h1>
         <p className="text-sm text-foreground/70">
-          Confirm collected quantities before the handover to shop is finalized.
+          Collectors now create your batches and we automatically log the pickup. Review each
+          quantity before the handover to a shop.
         </p>
       </header>
 
@@ -92,7 +93,7 @@ export default async function SellerCollectionsPage() {
             {mine.length === 0 && (
               <tr>
                 <td className="p-3 text-foreground/60" colSpan={5}>
-                  No collections for your batches.
+                  No pickups waiting for your confirmation.
                 </td>
               </tr>
             )}

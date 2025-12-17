@@ -42,17 +42,18 @@ export default async function DashboardLayout({
       { title: "Wallet", href: "/dashboard/seller/wallet", icon: "wallet" },
       { title: "Discounts", href: "/dashboard/seller/discounts", icon: "discounts" },
       { title: "Returns", href: "/dashboard/seller/returns", icon: "returns" },
-      { title: "Collections", href: "/dashboard/seller/collections", icon: "collections" },
+      { title: "Pickups", href: "/dashboard/seller/collections", icon: "collections" },
       { title: "Disputes", href: "/dashboard/seller/disputes", icon: "disputes" },
     );
   } else if (role === "collector") {
-    navItems.splice(1, 0, { title: "Collections", href: "/dashboard/collector", icon: "collections" });
+    navItems.splice(1, 0, { title: "Pickups", href: "/dashboard/collector", icon: "collections" });
   } else if (role === "shop_owner") {
     navItems.splice(
       1,
       0,
       { title: "Sales", href: "/dashboard/shop/sales", icon: "sales" },
       { title: "Inventory", href: "/dashboard/shop/inventory", icon: "inventory" },
+      { title: "Batch prep", href: "/dashboard/shop/batch-prep", icon: "collections" },
       { title: "Stock checker", href: "/dashboard/shop/stock-checker", icon: "stock" },
       { title: "Sale events", href: "/dashboard/shop/events", icon: "events" },
     );

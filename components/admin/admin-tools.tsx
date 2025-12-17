@@ -7,10 +7,8 @@ import { ResponsiveFormDrawer } from "@/components/form/responsive-form-drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LoadingButton } from "@/components/form/loading-button";
-import { CollectedBatchBarcodesTool } from "@/components/admin/collected-batch-barcodes";
 
 type Role = "seller" | "collector" | "shop_owner" | "admin";
 
@@ -65,7 +63,6 @@ export function AdminTools({ section = "all" }: { section?: AdminToolsSection })
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const showUsers = section === "all" || section === "users";
-  const showInventory = section === "all" || section === "inventory";
   const showWorkflows = section === "all" || section === "workflows";
   const showAdjustments = section === "all" || section === "adjustments";
   const showReviews = section === "all" || section === "reviews";
@@ -76,14 +73,6 @@ export function AdminTools({ section = "all" }: { section?: AdminToolsSection })
   const [setRoleName, setSetRoleName] = useState("");
   const [bootstrapSecret, setBootstrapSecret] = useState("");
   const [setRoleResult, setSetRoleResult] = useState<string | null>(null);
-
-  const [batchId, setBatchId] = useState("");
-  const [barcodes, setBarcodes] = useState("");
-  const [createItemsResult, setCreateItemsResult] = useState<string | null>(null);
-
-  const [stockBarcode, setStockBarcode] = useState("");
-  const [stockShopId, setStockShopId] = useState("");
-  const [stockResult, setStockResult] = useState<string | null>(null);
 
   const [pendingDiscounts, setPendingDiscounts] = useState<PendingDiscountRow[]>(
     [],
@@ -415,45 +404,6 @@ export function AdminTools({ section = "all" }: { section?: AdminToolsSection })
     setSetRoleResult(res.ok ? JSON.stringify(json) : JSON.stringify(json));
   }
 
-  async function callCreateItems() {
-    setCreateItemsResult(null);
-    const list = barcodes
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (!batchId.trim() || list.length === 0) {
-      setCreateItemsResult("Provide batch_id and at least one barcode");
-      return;
-    }
-    const { data, error } = await supabase.rpc("rpc_admin_create_items", {
-      p_batch_id: batchId.trim(),
-      p_barcodes: list,
-      p_initial_status: "created",
-    });
-    if (error) {
-      setCreateItemsResult(error.message);
-      return;
-    }
-    setCreateItemsResult(JSON.stringify(data));
-  }
-
-  async function callStockItem() {
-    setStockResult(null);
-    if (!stockBarcode.trim() || !stockShopId.trim()) {
-      setStockResult("Provide barcode and shop_id");
-      return;
-    }
-    const { data, error } = await supabase.rpc("rpc_admin_stock_item_to_shop", {
-      p_barcode: stockBarcode.trim(),
-      p_shop_id: stockShopId.trim(),
-    });
-    if (error) {
-      setStockResult(error.message);
-      return;
-    }
-    setStockResult(JSON.stringify(data));
-  }
-
   return (
     <div className="space-y-8">
       <section className="space-y-3">
@@ -522,92 +472,6 @@ export function AdminTools({ section = "all" }: { section?: AdminToolsSection })
                 ) : null}
               </div>
             </ResponsiveFormDrawer>
-          ) : null}
-
-          {showInventory ? (
-            <>
-              <ResponsiveFormDrawer
-                title="Create items (barcodes)"
-                description="Create per-item barcodes for an existing batch."
-                trigger={<Button variant="secondary">Create items</Button>}
-              >
-                <div className="grid gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="batch_id">Batch reference</Label>
-                    <Input
-                      id="batch_id"
-                      value={batchId}
-                      onChange={(e) => setBatchId(e.target.value)}
-                      className="font-mono text-sm"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="barcodes">Barcodes (one per line)</Label>
-                    <Textarea
-                      id="barcodes"
-                      value={barcodes}
-                      onChange={(e) => setBarcodes(e.target.value)}
-                      className="font-mono text-sm"
-                    />
-                  </div>
-                  <LoadingButton
-                    loading={busyKey === "createItems"}
-                    onClick={() => run("createItems", callCreateItems)}
-                    className="w-fit"
-                    variant="secondary"
-                  >
-                    Create
-                  </LoadingButton>
-                  {createItemsResult ? (
-                    <pre className="text-xs font-mono p-3 rounded border bg-background overflow-auto max-h-40">
-                      {createItemsResult}
-                    </pre>
-                  ) : null}
-                </div>
-              </ResponsiveFormDrawer>
-
-              <ResponsiveFormDrawer
-                title="Stock item to shop"
-                description="Move an item to a shop inventory by barcode."
-                trigger={<Button variant="secondary">Stock item</Button>}
-              >
-                <div className="grid gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="stock_barcode">Barcode</Label>
-                    <Input
-                      id="stock_barcode"
-                      value={stockBarcode}
-                      onChange={(e) => setStockBarcode(e.target.value)}
-                      className="font-mono text-sm"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="shop_id">Shop id</Label>
-                    <Input
-                      id="shop_id"
-                      value={stockShopId}
-                      onChange={(e) => setStockShopId(e.target.value)}
-                      className="font-mono text-sm"
-                    />
-                  </div>
-                  <LoadingButton
-                    loading={busyKey === "stock"}
-                    onClick={() => run("stock", callStockItem)}
-                    className="w-fit"
-                    variant="secondary"
-                  >
-                    Stock
-                  </LoadingButton>
-                  {stockResult ? (
-                    <pre className="text-xs font-mono p-3 rounded border bg-background overflow-auto max-h-40">
-                      {stockResult}
-                    </pre>
-                  ) : null}
-                </div>
-              </ResponsiveFormDrawer>
-
-              <CollectedBatchBarcodesTool />
-            </>
           ) : null}
 
           {showRefresh ? (

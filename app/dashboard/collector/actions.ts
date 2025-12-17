@@ -10,37 +10,6 @@ function isUuid(value: string) {
   );
 }
 
-export async function createCollectionAction(formData: FormData) {
-  const supabase = await createClient();
-  const { data: claimsData } = await supabase.auth.getClaims();
-  const userId = claimsData?.claims?.sub;
-  if (!userId) throw new Error("Not authenticated");
-
-  const batchId = String(formData.get("batch_id") ?? "");
-  const collectedQuantity = Number(formData.get("collected_quantity") ?? "");
-
-  if (!batchId) throw new Error("Missing batch_id");
-  if (!isUuid(batchId)) throw new Error("Invalid batch_id");
-  if (!Number.isInteger(collectedQuantity) || collectedQuantity <= 0) {
-    throw new Error("Invalid collected_quantity");
-  }
-
-  const { error } = await supabase.rpc("create_collection", {
-    p_batch_id: batchId,
-    p_collected_quantity: collectedQuantity,
-  });
-
-  if (error) {
-    if (error.message.includes("Could not find the function public.create_collection")) {
-      throw new Error(
-        "Database RPC create_collection() not found. Apply latest Supabase migrations and refresh the PostgREST schema cache.",
-      );
-    }
-    throw new Error(error.message);
-  }
-  revalidatePath("/dashboard/collector");
-}
-
 export async function collectorCreateProductAction(formData: FormData) {
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();

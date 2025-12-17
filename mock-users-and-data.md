@@ -47,7 +47,7 @@ node scripts/seed-mock-data.mjs
 After seeding:
 
 - Go to `/dashboard/admin` (login as Admin) to see pending workflows and manage discounts/payouts/returns/disputes.
-- Go to `/dashboard/shop` (login as Shop) to quote/sell by barcode.
+- Go to `/dashboard/shop/batch-prep` (login as Shop) to generate barcodes, then `/dashboard/shop` to quote/sell by barcode.
 - Go to `/dashboard/seller` (login as Seller) to see wallet/discounts/returns/disputes.
 
 ## Resetting domain data (keep user profiles)

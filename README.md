@@ -54,9 +54,9 @@ This is the typical “happy path” through the system, including pricing, disc
 - Seller confirms what was collected (this is the seller-side verification step).
 - After confirmation, the batch progresses to the next state for handover.
 
-### 5) Admin creates/prints barcodes for items
+### 5) Shop owner creates/prints barcodes for items
 
-- Admin generates item-level barcodes for the collected quantity.
+- The shop owner generates item-level barcodes for the collected quantity.
 - Each barcode is unique and maps to exactly one physical item.
 - Barcode-only sales are enforced later by the shop flow (manual sales are blocked).
 

@@ -2,11 +2,7 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { getMyRole } from "@/lib/supabase/profile";
-import {
-  collectorCreateBatchAction,
-  collectorCreateProductAction,
-  createCollectionAction,
-} from "./actions";
+import { collectorCreateBatchAction, collectorCreateProductAction } from "./actions";
 import { markHandoverAction } from "./handover-actions";
 import { SubmitButton } from "@/components/form/submit-button";
 import { Input } from "@/components/ui/input";
@@ -86,8 +82,8 @@ export default async function CollectorDashboard() {
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold">Collector dashboard</h1>
         <p className="text-sm text-foreground/70">
-          Record collections against batches. (Assignment workflow can be added
-          next; for now enter the batch id.)
+          Capture seller inventory. Saving a batch now logs the pickup automatically. Sellers
+          confirm from their dashboard before you hand over to a shop.
         </p>
       </header>
 
@@ -95,8 +91,8 @@ export default async function CollectorDashboard() {
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">Create seller inventory</h2>
           <p className="text-sm text-foreground/70">
-            Capture products and batches while you are with the seller. Sellers will confirm
-            collections after you record them.
+            Capture products and batches while you are with the seller. We record the pickup
+            as soon as you save the batch—no extra collection form needed.
           </p>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
@@ -196,38 +192,11 @@ export default async function CollectorDashboard() {
         </div>
       </section>
 
-      <div>
-        <ResponsiveFormDrawer
-          title="Create collection"
-          description="Record a collection against a batch."
-          trigger={<Button>Record collection</Button>}
-        >
-          <form action={createCollectionAction} className="grid gap-4">
-            <label className="grid gap-2">
-              <span className="text-sm">Batch reference</span>
-              <Input
-                name="batch_id"
-                className="font-mono text-sm"
-                placeholder="Paste batch reference"
-                required
-              />
-            </label>
-            <label className="grid gap-2">
-              <span className="text-sm">Collected quantity</span>
-              <Input name="collected_quantity" type="number" min="1" required />
-            </label>
-            <SubmitButton className="w-fit" pendingText="Recording...">
-              Record
-            </SubmitButton>
-          </form>
-        </ResponsiveFormDrawer>
-      </div>
-
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">My collections</h2>
+        <h2 className="text-lg font-semibold">Pickups & handovers</h2>
         <p className="text-sm text-foreground/70">
-          After handing over to the shop, attach a proof reference (photo URL,
-          note, receipt id, etc.).
+          Every saved batch creates a pickup record automatically. Wait for seller confirmation,
+          then hand it over to a shop with proof.
         </p>
         <div className="rounded border overflow-x-auto">
           <table className="w-full min-w-max text-sm">
@@ -271,7 +240,7 @@ export default async function CollectorDashboard() {
               {(!collections || collections.length === 0) && (
                 <tr>
                   <td className="p-3 text-foreground/60" colSpan={5}>
-                    No collections recorded yet.
+                    No pickups recorded yet.
                   </td>
                 </tr>
               )}

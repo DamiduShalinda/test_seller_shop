@@ -29,7 +29,7 @@ export async function markHandoverAction(formData: FormData) {
     const message = `${error.message}${details}`;
     if (error.message.includes("Not enough items available to hand over")) {
       throw new Error(
-        `${message}. Ensure item barcodes exist for this batch (Admin Tools → Create items) and that enough items are still unassigned (not already stocked/sold).`,
+        `${message}. Ensure item barcodes exist for this batch (Shop → Batch prep) and that enough items are still unassigned (not already stocked/sold).`,
       );
     }
     throw new Error(message);
