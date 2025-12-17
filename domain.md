@@ -6,9 +6,11 @@
 - Admin has final authority
 
 ## Seller Rules
+- Collectors capture new products and batches while on-site with the seller
 - One product per seller at one price
 - Quantity editable until collection starts
 - Can cancel batch before collection
+- Seller must confirm pickup after collector submission
 - Can withdraw unsold items
 
 ## Batch Rules

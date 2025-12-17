@@ -2,13 +2,19 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { getMyRole } from "@/lib/supabase/profile";
-import { createCollectionAction } from "./actions";
+import {
+  collectorCreateBatchAction,
+  collectorCreateProductAction,
+  createCollectionAction,
+} from "./actions";
 import { markHandoverAction } from "./handover-actions";
 import { SubmitButton } from "@/components/form/submit-button";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ResponsiveFormDrawer } from "@/components/form/responsive-form-drawer";
 import { CollectorHandoverForm } from "./handover-form";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 type CollectorCollectionRow = {
   id: string;
@@ -20,6 +26,17 @@ type CollectorCollectionRow = {
   batches: Array<{
     products: Array<{ name: string }>;
   }>;
+};
+
+type SellerRow = {
+  id: string;
+  name: string;
+};
+
+type ProductRow = {
+  id: string;
+  name: string;
+  created_by: string | null;
 };
 
 export default async function CollectorDashboard() {
@@ -46,7 +63,23 @@ export default async function CollectorDashboard() {
     .order("name", { ascending: true })
     .limit(200);
 
+  const { data: sellers } = await supabase
+    .from("sellers")
+    .select("id, name")
+    .order("name", { ascending: true })
+    .limit(500);
+
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, name, created_by")
+    .is("archived_at", null)
+    .order("created_at", { ascending: false })
+    .limit(500);
+
   const shopOptions = (shops ?? []) as Array<{ id: string; name: string }>;
+  const sellerOptions = (sellers ?? []) as SellerRow[];
+  const productOptions = (products ?? []) as ProductRow[];
+  const sellerNameById = new Map(sellerOptions.map((s) => [s.id, s.name]));
 
   return (
     <div className="space-y-10">
@@ -57,6 +90,111 @@ export default async function CollectorDashboard() {
           next; for now enter the batch id.)
         </p>
       </header>
+
+      <section className="rounded border p-5 space-y-4">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">Create seller inventory</h2>
+          <p className="text-sm text-foreground/70">
+            Capture products and batches while you are with the seller. Sellers will confirm
+            collections after you record them.
+          </p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <ResponsiveFormDrawer
+            title="Record seller product"
+            description="Add a new product on behalf of a seller."
+            trigger={<Button variant="secondary">Add product</Button>}
+          >
+            {sellerOptions.length === 0 ? (
+              <p className="text-sm text-foreground/70">
+                No sellers available. Ask an admin to onboard sellers first.
+              </p>
+            ) : (
+              <form action={collectorCreateProductAction} className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="seller_id">Seller</Label>
+                  <select
+                    id="seller_id"
+                    name="seller_id"
+                    className="border rounded px-3 py-2 bg-background text-sm"
+                    required
+                  >
+                    {sellerOptions.map((seller) => (
+                      <option key={seller.id} value={seller.id}>
+                        {seller.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Product name</Label>
+                  <Input id="name" name="name" placeholder="e.g. Classic T-Shirt" required />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="description">Description (optional)</Label>
+                  <Textarea
+                    id="description"
+                    name="description"
+                    placeholder="Notes about size, color, etc."
+                  />
+                </div>
+                <SubmitButton className="w-fit" pendingText="Recording...">
+                  Save product
+                </SubmitButton>
+              </form>
+            )}
+          </ResponsiveFormDrawer>
+
+          <ResponsiveFormDrawer
+            title="Record seller batch"
+            description="Start a new batch for one of the seller products."
+            trigger={<Button>Add batch</Button>}
+          >
+            {productOptions.length === 0 ? (
+              <p className="text-sm text-foreground/70">
+                No active products. Add a product first.
+              </p>
+            ) : (
+              <form action={collectorCreateBatchAction} className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="product_option">Product</Label>
+                  <select
+                    id="product_option"
+                    name="product_option"
+                    className="border rounded px-3 py-2 bg-background text-sm"
+                    required
+                  >
+                    {productOptions.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {sellerNameById.get(product.created_by ?? "") ?? "Unknown seller"} —{" "}
+                        {product.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="base_price">Base price</Label>
+                  <Input
+                    id="base_price"
+                    name="base_price"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="quantity">Quantity</Label>
+                  <Input id="quantity" name="quantity" type="number" min="1" required />
+                </div>
+                <SubmitButton className="w-fit" pendingText="Recording...">
+                  Save batch
+                </SubmitButton>
+              </form>
+            )}
+          </ResponsiveFormDrawer>
+        </div>
+      </section>
 
       <div>
         <ResponsiveFormDrawer

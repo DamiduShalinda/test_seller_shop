@@ -4,11 +4,14 @@ This system manages sellers, collectors, retail shops, and administrators.
 Each user has exactly one role.
 
 The platform enables:
-- Seller-submitted product batches
+- Collector-recorded product batches on behalf of sellers
 - Item-level barcode traceability
 - Collector-based product transportation
 - Shop-based barcode-only sales
 - Admin-controlled pricing, discounts, and disputes
+
+Collectors capture seller inventory details while on-site, then sellers confirm the pickup before
+items move toward shops.
 
 The system is eventually consistent and supports offline shop sales with
 mandatory synchronization.

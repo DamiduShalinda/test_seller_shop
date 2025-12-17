@@ -9,6 +9,7 @@
 - Sellers can only see their own data
 - Shops cannot see seller pricing breakdowns
 - Admin bypass with audit logs
+- Collectors create seller inventory via security-definer RPCs; direct inserts remain blocked
 
 ## Barcode Security
 - Each item barcode is unique

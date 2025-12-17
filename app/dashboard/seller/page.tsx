@@ -5,8 +5,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getMyRole } from "@/lib/supabase/profile";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ResponsiveFormDrawer } from "@/components/form/responsive-form-drawer";
-import { CreateBatchForm } from "@/components/seller/create-batch-form";
 
 export default async function SellerDashboard() {
   noStore();
@@ -30,12 +28,6 @@ export default async function SellerDashboard() {
     .eq("seller_id", userId)
     .order("created_at", { ascending: false });
 
-    console.log(batches)
-
-  const myProducts = (products ?? []).filter(
-    (p) => p.created_by === userId && !p.archived_at,
-  );
-
   const productById = new Map((products ?? []).map((p) => [p.id, p]));
 
   return (
@@ -43,8 +35,8 @@ export default async function SellerDashboard() {
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold">Seller dashboard</h1>
         <p className="text-sm text-foreground/70">
-          Create batches and track sales. Batch quantity/price can be edited only
-          while status is <span className="font-mono">created</span>.
+          Collectors now create products and batches on your behalf while they are on-site.
+          You can still review batches here, confirm pickups, and track payouts.
         </p>
         <div>
           <Button asChild variant="outline" size="sm">
@@ -62,19 +54,9 @@ export default async function SellerDashboard() {
       <section className="rounded border p-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Batches</h2>
-          {myProducts.length === 0 ? (
-            <Button asChild>
-              <Link href="/dashboard/seller/products">Add a product first</Link>
-            </Button>
-          ) : (
-            <ResponsiveFormDrawer
-              title="Create batch"
-              description="Create a new batch for one of your active products."
-              trigger={<Button>Create batch</Button>}
-            >
-              <CreateBatchForm products={myProducts.map((p) => ({ id: p.id, name: p.name }))} />
-            </ResponsiveFormDrawer>
-          )}
+          <Button asChild variant="outline">
+            <Link href="/dashboard/collector">Contact your assigned collector</Link>
+          </Button>
         </div>
       </section>
 

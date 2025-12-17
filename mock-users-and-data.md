@@ -49,3 +49,15 @@ After seeding:
 - Go to `/dashboard/admin` (login as Admin) to see pending workflows and manage discounts/payouts/returns/disputes.
 - Go to `/dashboard/shop` (login as Shop) to quote/sell by barcode.
 - Go to `/dashboard/seller` (login as Seller) to see wallet/discounts/returns/disputes.
+
+## Resetting domain data (keep user profiles)
+
+To wipe products/batches/items/collections/etc. without touching existing users, run:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=... \\
+SUPABASE_SERVICE_ROLE_KEY=... \\
+node scripts/reset-domain-data.mjs
+```
+
+This script truncates all domain tables (products, batches, items, collections, discounts, commissions, wallets, payouts, sales, audit logs) while leaving `auth.users`, `public.users`, and role tables (`sellers`, `collectors`, `shops`, `admins`) intact.

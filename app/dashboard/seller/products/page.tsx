@@ -4,12 +4,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getMyRole } from "@/lib/supabase/profile";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { SubmitButton } from "@/components/form/submit-button";
-import { ResponsiveFormDrawer } from "@/components/form/responsive-form-drawer";
-import { createProductAction } from "./actions";
 
 type ProductRow = {
   id: string;
@@ -43,32 +37,10 @@ export default async function SellerProductsPage() {
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold">Products</h1>
         <p className="text-sm text-muted-foreground">
-          Add and manage products you sell. Products are archived instead of deleted
-          (no historical records are removed).
+          Collectors now capture new products while they are at your shop. You can still review
+          and manage the products below, but contact your assigned collector to add new ones.
         </p>
       </header>
-
-      <div>
-        <ResponsiveFormDrawer
-          title="Add product"
-          description="Create a new product for your catalog."
-          trigger={<Button>Add product</Button>}
-        >
-          <form action={createProductAction} className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">Name</Label>
-              <Input id="name" name="name" placeholder="e.g. Classic T-Shirt" required />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="description">Description (optional)</Label>
-              <Textarea id="description" name="description" placeholder="Short description..." />
-            </div>
-            <SubmitButton className="w-fit" pendingText="Creating...">
-              Create product
-            </SubmitButton>
-          </form>
-        </ResponsiveFormDrawer>
-      </div>
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
@@ -112,7 +84,7 @@ export default async function SellerProductsPage() {
               {active.length === 0 && (
                 <tr>
                   <td className="p-3 text-muted-foreground" colSpan={4}>
-                    No products yet. Create one above to start making batches.
+                    No products yet. Ask your collector to add one for you.
                   </td>
                 </tr>
               )}
