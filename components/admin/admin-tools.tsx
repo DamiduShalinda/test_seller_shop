@@ -50,6 +50,15 @@ type DisputeRow = {
   message: string;
 };
 
+type CommissionRow = {
+  id: string;
+  seller_id: string;
+  type: "percentage" | "fixed";
+  value: number;
+  active: boolean;
+  created_at: string;
+};
+
 export type AdminToolsSection =
   | "all"
   | "users"
@@ -97,6 +106,21 @@ export function AdminTools({ section = "all" }: { section?: AdminToolsSection })
   );
   const [commissionValue, setCommissionValue] = useState("");
   const [commissionResult, setCommissionResult] = useState<string | null>(null);
+  const [commissions, setCommissions] = useState<CommissionRow[]>([]);
+  const [commissionSellerNames, setCommissionSellerNames] = useState<
+    Record<string, string>
+  >({});
+  const [editingCommission, setEditingCommission] = useState<CommissionRow | null>(
+    null,
+  );
+  const [editingCommissionValue, setEditingCommissionValue] = useState("");
+  const [editingCommissionType, setEditingCommissionType] = useState<
+    "percentage" | "fixed"
+  >("percentage");
+  const [editingCommissionActive, setEditingCommissionActive] = useState(true);
+  const [editingCommissionResult, setEditingCommissionResult] = useState<string | null>(
+    null,
+  );
 
   const [overrideBatchId, setOverrideBatchId] = useState("");
   const [overridePrice, setOverridePrice] = useState("");
@@ -210,6 +234,45 @@ export function AdminTools({ section = "all" }: { section?: AdminToolsSection })
     }
   }, [supabase]);
 
+  const refreshCommissions = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("commissions")
+      .select("id, seller_id, type, value, active, created_at")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) {
+      setCommissions([]);
+      setCommissionSellerNames({});
+      return;
+    }
+
+    const rows = (data ?? []) as CommissionRow[];
+    setCommissions(rows);
+    const sellerIds = Array.from(
+      new Set(rows.map((row) => row.seller_id).filter(Boolean)),
+    );
+
+    if (sellerIds.length === 0) {
+      setCommissionSellerNames({});
+      return;
+    }
+
+    const { data: sellers, error: sellerError } = await supabase
+      .from("sellers")
+      .select("id, name")
+      .in("id", sellerIds);
+    if (sellerError || !sellers) {
+      setCommissionSellerNames({});
+      return;
+    }
+
+    const sellerMap: Record<string, string> = {};
+    for (const row of sellers as Array<{ id: string; name: string }>) {
+      sellerMap[row.id] = row.name;
+    }
+    setCommissionSellerNames(sellerMap);
+  }, [supabase]);
+
   async function run(key: string, fn: () => Promise<void>) {
     if (busyKey) return;
     setBusyKey(key);
@@ -303,7 +366,48 @@ export function AdminTools({ section = "all" }: { section?: AdminToolsSection })
       active: true,
     });
     if (error) setCommissionResult(error.message);
-    else setCommissionResult("Commission set");
+    else {
+      setCommissionResult("Commission set");
+      refreshCommissions().catch(() => {});
+    }
+  }
+
+  function startEditingCommission(row: CommissionRow) {
+    setEditingCommission(row);
+    setEditingCommissionValue(row.value.toString());
+    setEditingCommissionType(row.type);
+    setEditingCommissionActive(row.active);
+    setEditingCommissionResult(null);
+  }
+
+  function cancelEditingCommission() {
+    setEditingCommission(null);
+    setEditingCommissionResult(null);
+  }
+
+  async function updateCommission() {
+    if (!editingCommission) return;
+    setEditingCommissionResult(null);
+    const value = Number(editingCommissionValue);
+    if (!Number.isFinite(value) || value < 0) {
+      setEditingCommissionResult("Invalid value");
+      return;
+    }
+    const { error } = await supabase
+      .from("commissions")
+      .update({
+        value,
+        type: editingCommissionType,
+        active: editingCommissionActive,
+      })
+      .eq("id", editingCommission.id);
+    if (error) {
+      setEditingCommissionResult(error.message);
+      return;
+    }
+    setEditingCommissionResult("Commission updated");
+    setEditingCommission(null);
+    refreshCommissions().catch(() => {});
   }
 
   async function overrideBatchPrice() {
@@ -371,6 +475,11 @@ export function AdminTools({ section = "all" }: { section?: AdminToolsSection })
     if (!showWorkflows && !showReviews) return;
     refreshWorkflows().catch(() => {});
   }, [refreshWorkflows, showReviews, showWorkflows]);
+
+  useEffect(() => {
+    if (!showAdjustments) return;
+    refreshCommissions().catch(() => {});
+  }, [refreshCommissions, showAdjustments]);
 
   async function callAdminSetRole() {
     setSetRoleResult(null);
@@ -514,188 +623,328 @@ export function AdminTools({ section = "all" }: { section?: AdminToolsSection })
       ) : null}
 
       {showAdjustments ? (
-        <section className="rounded border p-5 space-y-4">
-          <h2 className="text-lg font-semibold">Admin adjustments</h2>
+        <section className="rounded border p-5 space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">Admin adjustments</h2>
+              <p className="text-sm text-muted-foreground">
+                Keep pricing, inventory, and commission rules aligned.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => refreshCommissions().catch(() => {})}
+            >
+              Refresh commissions
+            </Button>
+          </div>
+
           <div className="flex flex-wrap gap-2">
-          <ResponsiveFormDrawer
-            title="Slow-moving batch"
-            description="Flag a batch for reporting/alerts."
-            trigger={<Button variant="outline">Slow-moving</Button>}
-          >
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="slow_batch">Batch reference</Label>
-                <Input
-                  id="slow_batch"
-                  value={slowMovingBatchId}
-                  onChange={(e) => setSlowMovingBatchId(e.target.value)}
-                  className="font-mono text-sm"
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={slowMovingValue}
-                  onCheckedChange={(v) => setSlowMovingValue(Boolean(v))}
-                />
-                Mark as slow-moving
-              </label>
-              <LoadingButton
-                loading={busyKey === "slowMoving"}
-                onClick={() => run("slowMoving", setSlowMoving)}
-                variant="outline"
-                className="w-fit"
-              >
-                Update
-              </LoadingButton>
-              {slowMovingResult ? (
-                <div className="text-sm text-muted-foreground">{slowMovingResult}</div>
-              ) : null}
-            </div>
-          </ResponsiveFormDrawer>
-
-          <ResponsiveFormDrawer
-            title="Set commission"
-            description="Create an active commission rule for a seller."
-            trigger={<Button variant="outline">Commission</Button>}
-          >
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="commission_seller">Seller id</Label>
-                <Input
-                  id="commission_seller"
-                  value={commissionSellerId}
-                  onChange={(e) => setCommissionSellerId(e.target.value)}
-                  className="font-mono text-sm"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="commission_type">Type</Label>
-                <select
-                  id="commission_type"
-                  value={commissionType}
-                  onChange={(e) =>
-                    setCommissionType(e.target.value as "percentage" | "fixed")
-                  }
-                  className="border rounded px-3 py-2 bg-background"
+            <ResponsiveFormDrawer
+              title="Slow-moving batch"
+              description="Flag a batch for reporting/alerts."
+              trigger={<Button variant="outline">Slow-moving</Button>}
+            >
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="slow_batch">Batch reference</Label>
+                  <Input
+                    id="slow_batch"
+                    value={slowMovingBatchId}
+                    onChange={(e) => setSlowMovingBatchId(e.target.value)}
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={slowMovingValue}
+                    onCheckedChange={(v) => setSlowMovingValue(Boolean(v))}
+                  />
+                  Mark as slow-moving
+                </label>
+                <LoadingButton
+                  loading={busyKey === "slowMoving"}
+                  onClick={() => run("slowMoving", setSlowMoving)}
+                  variant="outline"
+                  className="w-fit"
                 >
-                  <option value="percentage">percentage</option>
-                  <option value="fixed">fixed</option>
-                </select>
+                  Update
+                </LoadingButton>
+                {slowMovingResult ? (
+                  <div className="text-sm text-muted-foreground">{slowMovingResult}</div>
+                ) : null}
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="commission_value">Value</Label>
-                <Input
-                  id="commission_value"
-                  value={commissionValue}
-                  onChange={(e) => setCommissionValue(e.target.value)}
-                  placeholder={commissionType === "percentage" ? "e.g. 10" : "e.g. 5.00"}
-                />
-              </div>
-              <LoadingButton
-                loading={busyKey === "commission"}
-                onClick={() => run("commission", setCommission)}
-                variant="outline"
-                className="w-fit"
-              >
-                Set commission
-              </LoadingButton>
-              {commissionResult ? (
-                <div className="text-sm text-muted-foreground">{commissionResult}</div>
-              ) : null}
-            </div>
-          </ResponsiveFormDrawer>
+            </ResponsiveFormDrawer>
 
-          <ResponsiveFormDrawer
-            title="Override batch price"
-            description="Audit-logged price override (admin-only)."
-            trigger={<Button variant="outline">Override price</Button>}
-          >
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="override_batch">Batch reference</Label>
-                <Input
-                  id="override_batch"
-                  value={overrideBatchId}
-                  onChange={(e) => setOverrideBatchId(e.target.value)}
-                  className="font-mono text-sm"
-                />
+            <ResponsiveFormDrawer
+              title="Set commission"
+              description="Create an active commission rule for a seller."
+              trigger={<Button variant="outline">Commission</Button>}
+            >
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="commission_seller">Seller id</Label>
+                  <Input
+                    id="commission_seller"
+                    value={commissionSellerId}
+                    onChange={(e) => setCommissionSellerId(e.target.value)}
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="commission_type">Type</Label>
+                  <select
+                    id="commission_type"
+                    value={commissionType}
+                    onChange={(e) =>
+                      setCommissionType(e.target.value as "percentage" | "fixed")
+                    }
+                    className="border rounded px-3 py-2 bg-background"
+                  >
+                    <option value="percentage">percentage</option>
+                    <option value="fixed">fixed</option>
+                  </select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="commission_value">Value</Label>
+                  <Input
+                    id="commission_value"
+                    value={commissionValue}
+                    onChange={(e) => setCommissionValue(e.target.value)}
+                    placeholder={commissionType === "percentage" ? "e.g. 10" : "e.g. 5.00"}
+                  />
+                </div>
+                <LoadingButton
+                  loading={busyKey === "commission"}
+                  onClick={() => run("commission", setCommission)}
+                  variant="outline"
+                  className="w-fit"
+                >
+                  Set commission
+                </LoadingButton>
+                {commissionResult ? (
+                  <div className="text-sm text-muted-foreground">{commissionResult}</div>
+                ) : null}
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="override_price">New base price</Label>
-                <Input
-                  id="override_price"
-                  value={overridePrice}
-                  onChange={(e) => setOverridePrice(e.target.value)}
-                  placeholder="e.g. 99.99"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="override_reason">Reason</Label>
-                <Input
-                  id="override_reason"
-                  value={overrideReason}
-                  onChange={(e) => setOverrideReason(e.target.value)}
-                />
-              </div>
-              <LoadingButton
-                loading={busyKey === "override"}
-                onClick={() => run("override", overrideBatchPrice)}
-                variant="outline"
-                className="w-fit"
-              >
-                Override price
-              </LoadingButton>
-              {overrideResult ? (
-                <div className="text-sm text-muted-foreground">{overrideResult}</div>
-              ) : null}
-            </div>
-          </ResponsiveFormDrawer>
+            </ResponsiveFormDrawer>
 
-          <ResponsiveFormDrawer
-            title="Adjust batch quantity"
-            description="Audit-logged quantity adjustment."
-            trigger={<Button variant="outline">Adjust quantity</Button>}
-          >
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="adjust_batch">Batch reference</Label>
-                <Input
-                  id="adjust_batch"
-                  value={adjustBatchId}
-                  onChange={(e) => setAdjustBatchId(e.target.value)}
-                  className="font-mono text-sm"
-                />
+            <ResponsiveFormDrawer
+              title="Override batch price"
+              description="Audit-logged price override (admin-only)."
+              trigger={<Button variant="outline">Override price</Button>}
+            >
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="override_batch">Batch reference</Label>
+                  <Input
+                    id="override_batch"
+                    value={overrideBatchId}
+                    onChange={(e) => setOverrideBatchId(e.target.value)}
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="override_price">New base price</Label>
+                  <Input
+                    id="override_price"
+                    value={overridePrice}
+                    onChange={(e) => setOverridePrice(e.target.value)}
+                    placeholder="e.g. 99.99"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="override_reason">Reason</Label>
+                  <Input
+                    id="override_reason"
+                    value={overrideReason}
+                    onChange={(e) => setOverrideReason(e.target.value)}
+                  />
+                </div>
+                <LoadingButton
+                  loading={busyKey === "override"}
+                  onClick={() => run("override", overrideBatchPrice)}
+                  variant="outline"
+                  className="w-fit"
+                >
+                  Override price
+                </LoadingButton>
+                {overrideResult ? (
+                  <div className="text-sm text-muted-foreground">{overrideResult}</div>
+                ) : null}
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="adjust_qty">New quantity</Label>
-                <Input
-                  id="adjust_qty"
-                  value={adjustQuantity}
-                  onChange={(e) => setAdjustQuantity(e.target.value)}
-                  placeholder="e.g. 50"
-                />
+            </ResponsiveFormDrawer>
+
+            <ResponsiveFormDrawer
+              title="Adjust batch quantity"
+              description="Audit-logged quantity adjustment."
+              trigger={<Button variant="outline">Adjust quantity</Button>}
+            >
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="adjust_batch">Batch reference</Label>
+                  <Input
+                    id="adjust_batch"
+                    value={adjustBatchId}
+                    onChange={(e) => setAdjustBatchId(e.target.value)}
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="adjust_qty">New quantity</Label>
+                  <Input
+                    id="adjust_qty"
+                    value={adjustQuantity}
+                    onChange={(e) => setAdjustQuantity(e.target.value)}
+                    placeholder="e.g. 50"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="adjust_reason">Reason</Label>
+                  <Input
+                    id="adjust_reason"
+                    value={adjustReason}
+                    onChange={(e) => setAdjustReason(e.target.value)}
+                  />
+                </div>
+                <LoadingButton
+                  loading={busyKey === "adjustQty"}
+                  onClick={() => run("adjustQty", adjustBatchQuantity)}
+                  variant="outline"
+                  className="w-fit"
+                >
+                  Adjust quantity
+                </LoadingButton>
+                {adjustResult ? (
+                  <div className="text-sm text-muted-foreground">{adjustResult}</div>
+                ) : null}
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="adjust_reason">Reason</Label>
-                <Input
-                  id="adjust_reason"
-                  value={adjustReason}
-                  onChange={(e) => setAdjustReason(e.target.value)}
-                />
-              </div>
-              <LoadingButton
-                loading={busyKey === "adjustQty"}
-                onClick={() => run("adjustQty", adjustBatchQuantity)}
-                variant="outline"
-                className="w-fit"
-              >
-                Adjust quantity
-              </LoadingButton>
-              {adjustResult ? (
-                <div className="text-sm text-muted-foreground">{adjustResult}</div>
-              ) : null}
+            </ResponsiveFormDrawer>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-base font-semibold">Current commissions</h3>
+              <p className="text-sm text-muted-foreground">
+                View and update the active commission rules before publishing.
+              </p>
             </div>
-          </ResponsiveFormDrawer>
+            <div className="rounded border overflow-x-auto">
+              <table className="w-full min-w-max text-sm">
+                <thead className="bg-muted/30">
+                  <tr className="text-left">
+                    <th className="p-3">Seller</th>
+                    <th className="p-3">Type</th>
+                    <th className="p-3">Value</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3">Created</th>
+                    <th className="p-3">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {commissions.map((row) => (
+                    <tr key={row.id} className="border-t">
+                      <td className="p-3">
+                        {commissionSellerNames[row.seller_id] ?? row.seller_id}
+                      </td>
+                      <td className="p-3 font-mono">{row.type}</td>
+                      <td className="p-3">
+                        {row.type === "percentage"
+                          ? `${row.value.toFixed(2)}%`
+                          : row.value.toFixed(2)}
+                      </td>
+                      <td className="p-3">{row.active ? "Active" : "Inactive"}</td>
+                      <td className="p-3 font-mono text-xs">
+                        {new Date(row.created_at).toLocaleString()}
+                      </td>
+                      <td className="p-3">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => startEditingCommission(row)}
+                        >
+                          Edit
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {commissions.length === 0 && (
+                    <tr>
+                      <td className="p-3 text-foreground/60" colSpan={6}>
+                        No commissions defined yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {editingCommission ? (
+              <div className="rounded border border-muted/50 bg-muted/5 p-4 space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Editing commission for</p>
+                    <p className="font-medium">
+                      {commissionSellerNames[editingCommission.seller_id] ??
+                        editingCommission.seller_id}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={cancelEditingCommission}>
+                    Cancel
+                  </Button>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-2">
+                    <Label htmlFor="edit_commission_type">Type</Label>
+                    <select
+                      id="edit_commission_type"
+                      value={editingCommissionType}
+                      onChange={(e) =>
+                        setEditingCommissionType(e.target.value as "percentage" | "fixed")
+                      }
+                      className="border rounded px-3 py-2 bg-background"
+                    >
+                      <option value="percentage">percentage</option>
+                      <option value="fixed">fixed</option>
+                    </select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="edit_commission_value">Value</Label>
+                    <Input
+                      id="edit_commission_value"
+                      value={editingCommissionValue}
+                      onChange={(e) => setEditingCommissionValue(e.target.value)}
+                      placeholder="e.g. 10 or 5.00"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="edit_commission_active">Status</Label>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        id="edit_commission_active"
+                        checked={editingCommissionActive}
+                        onCheckedChange={(v) => setEditingCommissionActive(Boolean(v))}
+                      />
+                      <span>{editingCommissionActive ? "Active" : "Inactive"}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 items-center">
+                  <LoadingButton
+                    loading={busyKey === "commissionEdit"}
+                    onClick={() => run("commissionEdit", updateCommission)}
+                    variant="outline"
+                    className="w-fit"
+                  >
+                    Update commission
+                  </LoadingButton>
+                  {editingCommissionResult ? (
+                    <div className="text-sm text-muted-foreground">
+                      {editingCommissionResult}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </div>
         </section>
       ) : null}
